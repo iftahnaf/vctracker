@@ -1,0 +1,138 @@
+{
+  "name": "vctracker",
+  "version": "0.0.0-semantic-release",
+  "description": "Raspberry Pi Pico GPS-based antenna tracker with ROS2 integration",
+  "private": true,
+  "scripts": {
+    "release": "semantic-release"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iftahnaf/vctracker.git"
+  },
+  "keywords": [
+    "antenna-tracker",
+    "raspberry-pi-pico",
+    "gps",
+    "ros2",
+    "gimbal",
+    "servo",
+    "tracking",
+    "embedded"
+  ],
+  "author": "Iftah Naftalovich",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/iftahnaf/vctracker/issues"
+  },
+  "homepage": "https://github.com/iftahnaf/vctracker#readme",
+  "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^11.0.6",
+    "@semantic-release/release-notes-generator": "^14.1.0",
+    "conventional-changelog-conventionalcommits": "^9.1.0",
+    "semantic-release": "^24.2.9"
+  },
+  "release": {
+    "branches": [
+      "main"
+    ],
+    "plugins": [
+      [
+        "@semantic-release/commit-analyzer",
+        {
+          "preset": "conventionalcommits",
+          "releaseRules": [
+            {
+              "type": "feat",
+              "release": "minor"
+            },
+            {
+              "type": "fix",
+              "release": "patch"
+            },
+            {
+              "type": "perf",
+              "release": "patch"
+            },
+            {
+              "type": "docs",
+              "release": false
+            },
+            {
+              "type": "style",
+              "release": false
+            },
+            {
+              "type": "refactor",
+              "release": "patch"
+            },
+            {
+              "type": "test",
+              "release": false
+            },
+            {
+              "type": "build",
+              "release": false
+            },
+            {
+              "type": "ci",
+              "release": false
+            },
+            {
+              "type": "chore",
+              "release": false
+            }
+          ]
+        }
+      ],
+      [
+        "@semantic-release/release-notes-generator",
+        {
+          "preset": "conventionalcommits"
+        }
+      ],
+      [
+        "@semantic-release/changelog",
+        {
+          "changelogFile": "CHANGELOG.md"
+        }
+      ],
+      [
+        "@semantic-release/github",
+        {
+          "assets": [
+            {
+              "path": "build/bin/antenna_tracker.uf2",
+              "name": "antenna_tracker_${nextRelease.version}.uf2",
+              "label": "Pico Firmware (UF2)"
+            },
+            {
+              "path": "build/bin/antenna_tracker.bin",
+              "name": "antenna_tracker_${nextRelease.version}.bin",
+              "label": "Pico Firmware (BIN)"
+            },
+            {
+              "path": "build/bin/antenna_tracker.elf",
+              "name": "antenna_tracker_${nextRelease.version}.elf",
+              "label": "Pico Firmware (ELF with debug symbols)"
+            }
+          ]
+        }
+      ],
+      [
+        "@semantic-release/git",
+        {
+          "assets": [
+            "CHANGELOG.md",
+            "package.json",
+            "package-lock.json"
+          ],
+          "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+        }
+      ]
+    ]
+  }
+}

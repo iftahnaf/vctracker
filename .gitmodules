@@ -1,0 +1,6 @@
+[submodule "vcgimbal"]
+	path = vcgimbal
+	url = git@github.com:iftahnaf/vcgimbal.git
+[submodule "lib/micro_ros_raspberrypi_pico_sdk"]
+	path = lib/micro_ros_raspberrypi_pico_sdk
+	url = https://github.com/micro-ROS/micro_ros_raspberrypi_pico_sdk.git

@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ created ]
+
+jobs:
+  build:
+    name: Build Pico Firmware
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        submodules: recursive
+        fetch-depth: 0
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          cmake \
+          gcc-arm-none-eabi \
+          libnewlib-arm-none-eabi \
+          libstdc++-arm-none-eabi-newlib \
+          python3
+    
+    - name: Verify pico-sdk
+      run: |
+        ls -la vcgimbal/lib/pico-sdk || echo "pico-sdk not found!"
+        test -d vcgimbal/lib/pico-sdk || exit 1
+    
+    - name: Build firmware (Release)
+      run: |
+        mkdir -p build
+        cd build
+        cmake -DCMAKE_BUILD_TYPE=Release ..
+        make -j$(nproc)
+    
+    - name: Verify build outputs
+      run: |
+        ls -lh build/bin/
+        test -f build/bin/antenna_tracker.uf2 || exit 1
+        test -f build/bin/antenna_tracker.bin || exit 1
+        test -f build/bin/antenna_tracker.elf || exit 1
+    
+    - name: Upload firmware artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: firmware-${{ github.sha }}
+        path: |
+          build/bin/antenna_tracker.uf2
+          build/bin/antenna_tracker.bin
+          build/bin/antenna_tracker.elf
+        retention-days: 30
+    
+    - name: Create release artifacts
+      if: github.event_name == 'release'
+      run: |
+        cd build/bin
+        zip antenna_tracker_${{ github.ref_name }}.zip antenna_tracker.*
+    
+    - name: Upload release assets
+      if: github.event_name == 'release'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: build/bin/antenna_tracker_${{ github.ref_name }}.zip
+        asset_name: antenna_tracker_${{ github.ref_name }}.zip
+        asset_content_type: application/zip
+
+  lint:
+    name: Code Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    
+    - name: Check file formatting
+      run: |
+        # Check for tabs instead of spaces
+        ! grep -r $'\t' --include="*.cpp" --include="*.h" src/ include/ || \
+          (echo "ERROR: Tabs found in source files. Use spaces." && exit 1)
+    
+    - name: Check line endings
+      run: |
+        # Check for CRLF line endings
+        ! find src include -type f \( -name "*.cpp" -o -name "*.h" \) -exec file {} \; | grep -i crlf || \
+          (echo "ERROR: CRLF line endings found. Use LF." && exit 1)
+
+  semantic-release:
+    name: Semantic Release
+    runs-on: ubuntu-latest
+    needs: [build, lint]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run semantic-release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: npx semantic-release
