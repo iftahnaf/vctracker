@@ -15,7 +15,7 @@ jobs:
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         submodules: recursive
         fetch-depth: 0
@@ -51,7 +51,7 @@ jobs:
         test -f build/bin/antenna_tracker.elf || exit 1
     
     - name: Upload firmware artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: firmware-${{ github.sha }}
         path: |
@@ -68,14 +68,9 @@ jobs:
     
     - name: Upload release assets
       if: github.event_name == 'release'
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@v1
       with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: build/bin/antenna_tracker_${{ github.ref_name }}.zip
-        asset_name: antenna_tracker_${{ github.ref_name }}.zip
-        asset_content_type: application/zip
+        files: build/bin/antenna_tracker_${{ github.ref_name }}.zip
 
   lint:
     name: Code Lint
@@ -83,7 +78,7 @@ jobs:
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     
     - name: Check file formatting
       run: |
@@ -105,13 +100,13 @@ jobs:
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
         persist-credentials: false
     
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: '20'
     

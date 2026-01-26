@@ -88,8 +88,8 @@ int main() {
         std::cout << "  Tilt: " << pos.tilt << "°" << std::endl;
         
         // Move gimbal
-        gimbal->setPan(pos.pan);
-        gimbal->setTilt(pos.tilt);
+        gimbal->setTipAngle(pos.pan, 0.0f);
+        gimbal->setTipAngle(0.0f, pos.tilt);
         
         // Wait for servo to move (typically 0.1-0.2s per 60°)
         std::cout << "  Moving." << std::flush;
@@ -104,11 +104,11 @@ int main() {
     std::cout << "Phase 2: Sweep Pan servo (±90°)" << std::endl;
     std::cout << "----------------------------------------\n" << std::endl;
     
-    gimbal->setTilt(0.0f); // Keep tilt centered
+    gimbal->setTipAngle(0.0f, 0.0f); // Keep tilt centered
     std::cout << "Sweeping pan from -90° to +90°..." << std::endl;
     
     for (float pan = -90.0f; pan <= 90.0f; pan += 9.0f) {
-        gimbal->setPan(pan);
+        gimbal->setTipAngle(pan, 0.0f);
         std::cout << "  Pan: " << pan << "°" << std::flush;
         sleep_ms(300);
         std::cout << "\r";
@@ -120,11 +120,11 @@ int main() {
     std::cout << "Phase 3: Sweep Tilt servo (±90°)" << std::endl;
     std::cout << "----------------------------------------\n" << std::endl;
     
-    gimbal->setPan(0.0f); // Keep pan centered
+    gimbal->setTipAngle(0.0f, 0.0f); // Keep pan centered
     std::cout << "Sweeping tilt from -90° to +90°..." << std::endl;
     
     for (float tilt = -90.0f; tilt <= 90.0f; tilt += 9.0f) {
-        gimbal->setTilt(tilt);
+        gimbal->setTipAngle(0.0f, tilt);
         std::cout << "  Tilt: " << tilt << "°" << std::flush;
         sleep_ms(300);
         std::cout << "\r";
@@ -149,8 +149,8 @@ int main() {
             float pan = radius * std::cos(angle);
             float tilt = radius * std::sin(angle);
             
-            gimbal->setPan(pan);
-            gimbal->setTilt(tilt);
+            gimbal->setTipAngle(pan, 0.0f);
+            gimbal->setTipAngle(0.0f, tilt);
             
             sleep_ms(100);
             std::cout << "." << std::flush;
@@ -163,8 +163,8 @@ int main() {
     std::cout << "----------------------------------------\n" << std::endl;
     
     std::cout << "Moving to center position..." << std::endl;
-    gimbal->setPan(0.0f);
-    gimbal->setTilt(0.0f);
+    gimbal->setTipAngle(0.0f, 0.0f);
+    gimbal->setTipAngle(0.0f, 0.0f);
     
     for (int i = 0; i < 20; i++) {
         sleep_ms(50);

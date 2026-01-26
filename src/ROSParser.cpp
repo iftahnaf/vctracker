@@ -1,7 +1,9 @@
 #include "../include/ROSParser.h"
+#include "../include/pico_uart_transport.h"
 #include "pico/stdlib.h"
 #include <rcl/error_handling.h>
 #include <rmw_microros/rmw_microros.h>
+#include <uxr/client/profile/transport/custom/custom_transport.h>
 #include <iostream>
 
 // Static instance for callback

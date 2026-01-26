@@ -9,51 +9,37 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="$PROJECT_DIR/build"
 
-# Color codes for UI
+# Color codes
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Menu options
-declare -a TARGETS=(
-    "Main Antenna Tracker"
-    "GPS Module Test"
-    "Status LED Test"
-    "Gimbal Servo Test"
-    "micro-ROS Integration Test"
-    "System Integration Test"
-    "Build All Targets"
-    "Exit"
+# Build targets
+declare -A TARGETS=(
+    [1]="main"
+    [2]="test_gps"
+    [3]="test_leds"
+    [4]="test_gimbal"
+    [5]="test_ros"
+    [6]="system_test"
+    [7]="all"
+    [8]="help"
 )
 
-# Build target CMake values
-declare -a CMAKE_TARGETS=(
-    "main"
-    "test_gps"
-    "test_leds"
-    "test_gimbal"
-    "test_ros"
-    "system_test"
-    "all"
-    "exit"
+declare -A DESCRIPTIONS=(
+    [1]="Main antenna tracker firmware with ROS2 integration"
+    [2]="Test GPS module reception and NMEA parsing"
+    [3]="Test status LED control and patterns"
+    [4]="Test gimbal servo movement and positioning"
+    [5]="Test micro-ROS agent connection and message reception"
+    [6]="Complete system integration test with simulation"
+    [7]="Build all targets (main + all tests)"
+    [8]="Show this help message"
 )
 
-# Descriptions
-declare -a DESCRIPTIONS=(
-    "Main antenna tracker firmware with ROS2 integration"
-    "Test GPS module reception and NMEA parsing"
-    "Test status LED control and patterns"
-    "Test gimbal servo movement and positioning"
-    "Test micro-ROS agent connection and message reception"
-    "Complete system integration test with simulation"
-    "Build all targets (main + all tests)"
-    "Exit without building"
-)
-
-# Function to clear screen and show header
 show_header() {
     clear
     echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"
@@ -63,265 +49,175 @@ show_header() {
     echo ""
 }
 
-# Function to show menu with arrow selection
 show_menu() {
-    local selection=$1
-    
     show_header
-    
-    echo -e "${BLUE}Select build target:${NC}"
+    echo -e "${BLUE}Available build targets:${NC}"
     echo ""
     
-    for i in "${!TARGETS[@]}"; do
-        local target="${TARGETS[$i]}"
-        local desc="${DESCRIPTIONS[$i]}"
-        
-        if [ $i -eq $selection ]; then
-            echo -e "${GREEN}▶ ${target}${NC}"
-            echo -e "  ${YELLOW}→ ${desc}${NC}"
-        else
-            echo -e "  ${target}"
-            echo -e "    ${desc}"
-        fi
-        
-        if [ $i -lt $((${#TARGETS[@]} - 1)) ]; then
-            echo ""
-        fi
+    for i in {1..8}; do
+        printf "  ${GREEN}%-1d${NC}. %-35s %s\n" "$i" "${DESCRIPTIONS[$i]}" ""
     done
     
     echo ""
-    echo -e "${CYAN}Use ↑↓ arrow keys to navigate, Enter to select${NC}"
+    echo -e "${CYAN}Usage: bash build.sh [1-8]${NC}"
+    echo -e "  Example: ${GREEN}bash build.sh 1${NC}  (builds main)"
+    echo ""
 }
 
-# Function to get keyboard input
-get_input() {
-    local key
-    
-    # Use bash read with timeout for arrow keys
-    IFS= read -rsn1 key
-    
-    case "$key" in
-        $'\x1b')  # ESC sequence
-            read -rsn2 key  # Read two more bytes for arrow keys
-            case "$key" in
-                '[A')  echo "up" ;;      # Up arrow
-                '[B')  echo "down" ;;    # Down arrow
-                *)     echo "unknown" ;;
-            esac
-            ;;
-        '')        echo "enter" ;;       # Enter key
-        *)         echo "unknown" ;;
-    esac
+show_help() {
+    show_header
+    echo -e "${BLUE}Build Targets:${NC}"
+    echo ""
+    echo "  1. main          - Main antenna tracker firmware"
+    echo "  2. test_gps      - GPS module test"
+    echo "  3. test_leds     - LED control test"
+    echo "  4. test_gimbal   - Gimbal servo test"
+    echo "  5. test_ros      - micro-ROS integration test"
+    echo "  6. system_test   - Full system integration test"
+    echo "  7. all           - Build everything"
+    echo "  8. help          - Show this help"
+    echo ""
+    echo -e "${BLUE}Command-line usage:${NC}"
+    echo "  bash build.sh              - Show interactive menu"
+    echo "  bash build.sh 1            - Build main target"
+    echo "  bash build.sh --help       - Show this help"
+    echo ""
 }
 
-# Function to build the selected target
+check_dependencies() {
+    echo -e "${BLUE}Checking dependencies...${NC}"
+    
+    if [ -d "$PROJECT_DIR/vcgimbal/lib/pico-sdk" ]; then
+        echo -e "${GREEN}✓${NC} pico-sdk found"
+    else
+        echo -e "${RED}✗${NC} pico-sdk not found"
+        echo "  Please run: bash scripts/init-submodules.sh"
+        exit 1
+    fi
+    
+    if [ -d "$PROJECT_DIR/lib/micro_ros_raspberrypi_pico_sdk" ]; then
+        echo -e "${GREEN}✓${NC} micro-ROS SDK found"
+    else
+        echo -e "${RED}✗${NC} micro-ROS SDK not found"
+        echo "  Please run: bash scripts/init-submodules.sh"
+        exit 1
+    fi
+    
+    echo ""
+}
+
 build_target() {
-    local target="$1"
+    local target=$1
     
-    clear
-    echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║                    Building Project                         ║${NC}"
+    if [ -z "${TARGETS[$target]}" ]; then
+        echo -e "${RED}✗${NC} Invalid target: $target"
+        show_menu
+        exit 1
+    fi
+    
+    local cmake_target="${TARGETS[$target]}"
+    
+    if [ "$cmake_target" = "help" ]; then
+        show_help
+        exit 0
+    fi
+    
+    show_header
+    echo -e "${BLUE}Building Project${NC}"
     echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
     echo ""
     
-    # Check submodules
-    echo -e "${BLUE}Checking dependencies...${NC}"
+    check_dependencies
     
-    if [ ! -d "$PROJECT_DIR/vcgimbal/lib/pico-sdk" ]; then
-        echo -e "${RED}✗ Error: pico-sdk not found${NC}"
-        echo "  Please run: git submodule update --init --recursive"
-        return 1
-    fi
-    echo -e "${GREEN}✓ pico-sdk found${NC}"
-    
-    if [ ! -d "$PROJECT_DIR/lib/micro_ros_raspberrypi_pico_sdk" ]; then
-        echo -e "${RED}✗ Error: micro-ROS SDK not found${NC}"
-        echo "  Please run: git submodule update --init --recursive"
-        return 1
-    fi
-    echo -e "${GREEN}✓ micro-ROS SDK found${NC}"
-    
-    echo ""
+    # Create build directory
     echo -e "${BLUE}Creating build directory...${NC}"
     mkdir -p "$BUILD_DIR"
     cd "$BUILD_DIR"
     
+    # Configure CMake
     echo -e "${BLUE}Configuring CMake...${NC}"
-    cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_TARGET="$target" .. || {
-        echo -e "${RED}✗ CMake configuration failed${NC}"
-        return 1
+    cmake \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_TARGET="$cmake_target" \
+        .. || {
+        echo -e "${RED}✗${NC} CMake configuration failed"
+        exit 1
     }
     
     echo ""
-    echo -e "${BLUE}Building target: ${CYAN}${target}${NC}"
-    echo -e "${BLUE}This may take a few minutes...${NC}"
+    
+    # Build
+    echo -e "${BLUE}Compiling (target: $cmake_target)...${NC}"
+    make -j"$(nproc)" || {
+        echo -e "${RED}✗${NC} Build failed"
+        exit 1
+    }
+    
+    echo ""
+    echo -e "${GREEN}✓${NC} Build completed successfully!"
     echo ""
     
-    if make -j$(nproc); then
+    # List outputs
+    if [ -d "bin" ]; then
+        echo -e "${BLUE}Output files:${NC}"
+        ls -lh bin/ | grep -E "\.uf2|\.bin|\.elf" | awk '{printf "  %s  %8s  %s\n", $6, $5, $9}'
         echo ""
-        echo -e "${GREEN}✓ Build completed successfully!${NC}"
+    fi
+    
+    # Ask about flashing
+    echo -e "${YELLOW}Detecting Pico device...${NC}"
+    
+    # Check for RPI-RP2 mount
+    if mount | grep -q "RPI-RP2"; then
+        RPI_RP2=$(mount | grep "RPI-RP2" | awk '{print $3}')
+        echo -e "${GREEN}✓${NC} Found Pico at: $RPI_RP2"
         echo ""
         
-        # Show output files
-        echo -e "${CYAN}Output files:${NC}"
-        for uf2_file in bin/*.uf2; do
-            if [ -f "$uf2_file" ]; then
-                size=$(du -h "$uf2_file" | cut -f1)
-                echo -e "  ${GREEN}✓${NC} $(basename "$uf2_file") (${size})"
+        read -p "Flash firmware to Pico? (y/n) " -n 1 -r
+        echo
+        
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            echo -e "${BLUE}Flashing...${NC}"
+            
+            # Find the .uf2 file
+            uf2_file=$(find bin -name "*.uf2" | head -1)
+            
+            if [ -z "$uf2_file" ]; then
+                echo -e "${RED}✗${NC} No .uf2 file found"
+                exit 1
             fi
-        done
-        
-        return 0
-    else
-        echo ""
-        echo -e "${RED}✗ Build failed${NC}"
-        return 1
-    fi
-}
-
-# Function to ask about flashing
-ask_flash() {
-    local uf2_files=( build/bin/*.uf2 )
-    
-    if [ ! -e "${uf2_files[0]}" ]; then
-        return 1
-    fi
-    
-    echo ""
-    echo -e "${YELLOW}Flash firmware to Raspberry Pi Pico?${NC}"
-    echo ""
-    echo "Instructions:"
-    echo "  1. Hold BOOTSEL button on Pico"
-    echo "  2. Connect USB cable (or reset while holding BOOTSEL)"
-    echo "  3. When 'RPI-RP2' drive appears, answer 'yes' below"
-    echo ""
-    
-    read -p "Ready to flash? (yes/no): " response
-    
-    if [ "$response" = "yes" ] || [ "$response" = "y" ]; then
-        echo ""
-        echo -e "${BLUE}Searching for RPI-RP2 drive...${NC}"
-        
-        # Check for mount point
-        local mount_point=""
-        
-        if [ -d "/media/$USER/RPI-RP2" ]; then
-            mount_point="/media/$USER/RPI-RP2"
-        elif [ -d "/mnt/RPI-RP2" ]; then
-            mount_point="/mnt/RPI-RP2"
-        elif [ -d "/Volumes/RPI-RP2" ]; then
-            mount_point="/Volumes/RPI-RP2"
+            
+            cp "$uf2_file" "$RPI_RP2/"
+            echo -e "${GREEN}✓${NC} Firmware flashed successfully!"
+            sleep 2
         fi
-        
-        if [ -z "$mount_point" ]; then
-            echo -e "${RED}✗ RPI-RP2 drive not found${NC}"
-            echo ""
-            echo "  Manual flashing:"
-            echo "    1. Put Pico in BOOTSEL mode"
-            echo "    2. Copy firmware to RPI-RP2 drive:"
-            for uf2_file in "${uf2_files[@]}"; do
-                echo "      cp $uf2_file /path/to/RPI-RP2/"
-            done
-            return 1
-        fi
-        
-        echo -e "${GREEN}✓ Found RPI-RP2 at ${mount_point}${NC}"
-        echo ""
-        echo -e "${BLUE}Flashing firmware...${NC}"
-        
-        for uf2_file in "${uf2_files[@]}"; do
-            if [ -f "$uf2_file" ]; then
-                filename=$(basename "$uf2_file")
-                echo "  Copying $filename..."
-                
-                if cp "$uf2_file" "$mount_point/"; then
-                    echo -e "  ${GREEN}✓ ${filename} flashed${NC}"
-                else
-                    echo -e "  ${RED}✗ Failed to copy ${filename}${NC}"
-                    return 1
-                fi
-            fi
-        done
-        
-        echo ""
-        echo -e "${GREEN}✓ Flash completed successfully!${NC}"
-        echo ""
-        echo "Pico should reboot automatically. Check serial output:"
-        echo "  screen /dev/ttyACM0 115200"
-        echo ""
-        
-        return 0
     else
-        echo "Skipped flashing"
-        return 1
+        echo -e "${YELLOW}⚠${NC} Pico device not detected"
+        echo "  Connect your Pico in bootloader mode (hold BOOTSEL during power-on)"
+        echo ""
     fi
 }
 
-# Main menu loop
-main() {
-    local selection=0
-    local running=true
+# Main entry point
+if [ $# -eq 0 ]; then
+    # Interactive mode
+    show_menu
     
-    while $running; do
-        show_menu $selection
-        
-        read -t 0.1 input || input=$(get_input)
-        
-        case "$input" in
-            "up")
-                ((selection--))
-                if [ $selection -lt 0 ]; then
-                    selection=$((${#TARGETS[@]} - 1))
-                fi
-                ;;
-            "down")
-                ((selection++))
-                if [ $selection -ge ${#TARGETS[@]} ]; then
-                    selection=0
-                fi
-                ;;
-            "enter")
-                local target="${CMAKE_TARGETS[$selection]}"
-                
-                if [ "$target" = "exit" ]; then
-                    clear
-                    echo "Exiting..."
-                    running=false
-                else
-                    if build_target "$target"; then
-                        ask_flash
-                    fi
-                    
-                    read -p "Press Enter to continue..."
-                fi
-                ;;
-        esac
-    done
-}
-
-# Show help if requested
-if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-    echo "Usage: bash $0 [options]"
+    read -p "Select target (1-8): " -n 1 selection
     echo ""
-    echo "Options:"
-    echo "  (no args)      Interactive menu mode"
-    echo "  main           Build main firmware only"
-    echo "  test_gps       Build GPS test"
-    echo "  test_leds      Build LED test"
-    echo "  test_gimbal    Build gimbal test"
-    echo "  test_ros       Build ROS test"
-    echo "  system_test    Build system test"
-    echo "  all            Build all targets"
-    echo "  -h, --help     Show this help"
-    exit 0
-fi
-
-# Command-line mode (if argument provided)
-if [ -n "$1" ]; then
-    if build_target "$1"; then
-        ask_flash
+    
+    if ! [[ "$selection" =~ ^[1-8]$ ]]; then
+        echo -e "${RED}✗${NC} Invalid selection"
+        exit 1
     fi
+    
+    build_target "$selection"
+elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ]; then
+    show_help
+elif [[ "$1" =~ ^[1-8]$ ]]; then
+    build_target "$1"
 else
-    # Interactive menu mode
-    main
+    echo -e "${RED}✗${NC} Invalid argument: $1"
+    show_menu
+    exit 1
 fi

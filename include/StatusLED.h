@@ -29,7 +29,7 @@ public:
      * @brief Constructor
      * @param pin GPIO pin number for LED
      */
-    StatusLED(uint pin);
+    StatusLED(uint32_t pin);
     
     /**
      * @brief Destructor
@@ -70,7 +70,7 @@ public:
     void toggle();
 
 private:
-    uint pin_;
+    uint32_t pin_;
     LEDState state_;
     bool current_level_;
     uint64_t last_update_time_;

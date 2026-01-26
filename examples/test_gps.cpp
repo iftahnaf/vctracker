@@ -63,11 +63,12 @@ int main() {
             read_count++;
             
             // Get current position
-            double lat = gps->getLatitude();
-            double lon = gps->getLongitude();
-            double alt = gps->getAltitude();
-            int sats = gps->getSatellites();
-            int fix_type = gps->getFixType();
+                auto data = gps->getData();
+                double lat = data.latitude;
+                double lon = data.longitude;
+                double alt = data.altitude;
+                int sats = gps->getSatelliteCount();
+                int fix_type = data.fix_quality;
             
             // Only print when we have valid fix
             if (fix_type > 0) {

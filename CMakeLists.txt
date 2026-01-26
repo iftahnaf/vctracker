@@ -9,8 +9,9 @@ set(PICO_SDK_PATH "${CMAKE_SOURCE_DIR}/vcgimbal/lib/pico-sdk" CACHE PATH "Path t
 # Include pico SDK
 include(${PICO_SDK_PATH}/external/pico_sdk_import.cmake)
 
-# Include micro-ROS SDK
-include(lib/micro_ros_raspberrypi_pico_sdk/pico_sdk_import.cmake)
+# Set micro-ROS SDK path as environment variable for its CMakeLists
+set(ENV{PICO_SDK_PATH} "${PICO_SDK_PATH}")
+set(MICROROS_SDK_PATH "${CMAKE_SOURCE_DIR}/lib/micro_ros_raspberrypi_pico_sdk" CACHE PATH "Path to micro-ROS SDK")
 
 project(vctracker VERSION 1.0.0 LANGUAGES CXX C)
 
@@ -26,7 +27,7 @@ set(CMAKE_C_STANDARD 11)
 set(BUILD_TARGET "main" CACHE STRING "Build target: main|test_gps|test_leds|test_gimbal|test_ros|system_test|all")
 
 # Compiler flags
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic -fexceptions")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -DDEBUG")
 
@@ -42,7 +43,11 @@ message(STATUS "Building Antenna Tracker for Raspberry Pi Pico with micro-ROS")
 include_directories(
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/vcgimbal/include
+    ${MICROROS_SDK_PATH}/libmicroros/include
 )
+
+# Link directories for prebuilt micro-ROS library
+link_directories(${MICROROS_SDK_PATH}/libmicroros)
 
 # Build vcgimbal library first
 add_subdirectory(vcgimbal)
@@ -54,6 +59,7 @@ set(TRACKER_SOURCES
     src/GeoCalculations.cpp
     src/StatusLED.cpp
     src/ROSParser.cpp
+    src/pico_uart_transport.c
 )
 
 # Create antenna tracker library
@@ -67,6 +73,8 @@ target_link_libraries(antenna_tracker_lib
     hardware_clocks
     microros
 )
+
+target_compile_options(antenna_tracker_lib PRIVATE -fexceptions)
 
 target_compile_definitions(antenna_tracker_lib PUBLIC PICO_BUILD=1)
 

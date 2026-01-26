@@ -91,8 +91,8 @@ int main() {
         std::cerr << "Failed to initialize gimbal!" << std::endl;
         return -1;
     }
-    gimbal->setPan(0.0f);
-    gimbal->setTilt(0.0f);
+    gimbal->setTipAngle(0.0f, 0.0f);
+    gimbal->setTipAngle(0.0f, 0.0f);
     std::cout << "  ✓ Gimbal ready (centered)\n" << std::endl;
     
     std::cout << "  3. GPS Module" << std::endl;
@@ -111,8 +111,8 @@ int main() {
         std::cerr << "Failed to initialize LEDs!" << std::endl;
         return -1;
     }
-    gps_led->setOff();
-    ros_led->setOff();
+    gps_led->off();
+    ros_led->off();
     std::cout << "  ✓ Status LEDs ready\n" << std::endl;
     
     std::cout << "  5. micro-ROS Parser" << std::endl;
@@ -132,24 +132,24 @@ int main() {
     
     std::cout << "LED Test: Blink pattern..." << std::endl;
     for (int i = 0; i < 4; i++) {
-        gps_led->setOn();
-        ros_led->setOn();
+        gps_led->on();
+        ros_led->on();
         sleep_ms(100);
-        gps_led->setOff();
-        ros_led->setOff();
+        gps_led->off();
+        ros_led->off();
         sleep_ms(100);
     }
     std::cout << "✓ LEDs responsive\n" << std::endl;
     
     std::cout << "Gimbal Test: Center position..." << std::endl;
-    gimbal->setPan(0.0f);
-    gimbal->setTilt(0.0f);
+    gimbal->setTipAngle(0.0f, 0.0f);
+    gimbal->setTipAngle(0.0f, 0.0f);
     sleep_ms(500);
-    gimbal->setPan(-45.0f);
+    gimbal->setTipAngle(-45.0f, 0.0f);
     sleep_ms(300);
-    gimbal->setPan(45.0f);
+    gimbal->setTipAngle(45.0f, 0.0f);
     sleep_ms(300);
-    gimbal->setPan(0.0f);
+    gimbal->setTipAngle(0.0f, 0.0f);
     sleep_ms(300);
     std::cout << "✓ Gimbal responsive\n" << std::endl;
     
@@ -170,7 +170,7 @@ int main() {
     std::cout << "  Longitude: " << tracker_lon << std::endl;
     std::cout << "  Altitude:  " << tracker_alt << " m\n" << std::endl;
     
-    gps_led->setOn(); // Indicate GPS fix
+    gps_led->on(); // Indicate GPS fix
     
     std::cout << "\n========================================" << std::endl;
     std::cout << "  Test 3: ROS2 Message Processing" << std::endl;
@@ -196,16 +196,16 @@ int main() {
         ros_parser->spin();
         
         if (ros_parser->isConnected()) {
-            ros_led->setOn();
+            ros_led->on();
             agent_ready = true;
             break;
         }
         
         // Blink LED while waiting
         if ((time_us_32() - agent_check_start) % 500000 < 250000) {
-            ros_led->setOn();
+            ros_led->on();
         } else {
-            ros_led->setOff();
+            ros_led->off();
         }
         
         sleep_ms(50);
@@ -213,7 +213,7 @@ int main() {
     
     if (agent_ready) {
         std::cout << "✓ micro-ROS agent connected\n" << std::endl;
-        ros_led->setOn();
+        ros_led->on();
     } else {
         std::cout << "⚠ Agent not connected (timeout)" << std::endl;
         std::cout << "Continuing with simulated test...\n" << std::endl;
@@ -258,8 +258,8 @@ int main() {
         std::cout << "    Tilt: " << tilt_angle << "°" << std::endl;
         
         // Move gimbal
-        gimbal->setPan(pan_angle);
-        gimbal->setTilt(tilt_angle);
+        gimbal->setTipAngle(pan_angle, 0.0f);
+        gimbal->setTipAngle(0.0f, tilt_angle);
         
         std::cout << "  Moving gimbal..." << std::flush;
         for (int j = 0; j < 15; j++) {
@@ -272,8 +272,8 @@ int main() {
     
     // Return to center
     std::cout << "\nReturning gimbal to center..." << std::endl;
-    gimbal->setPan(0.0f);
-    gimbal->setTilt(0.0f);
+    gimbal->setTipAngle(0.0f, 0.0f);
+    gimbal->setTipAngle(0.0f, 0.0f);
     for (int i = 0; i < 10; i++) {
         sleep_ms(100);
         std::cout << "." << std::flush;
@@ -301,24 +301,24 @@ int main() {
         pan_pos = 45.0f * std::cos(angle);
         tilt_pos = 30.0f * std::sin(angle);
         
-        gimbal->setPan(pan_pos);
-        gimbal->setTilt(tilt_pos);
+        gimbal->setTipAngle(pan_pos, 0.0f);
+        gimbal->setTipAngle(0.0f, tilt_pos);
         
         ros_parser->spin();
         
         // Update LED status
         if (gps->update()) {
-            gps_led->setOn();
+            gps_led->on();
         }
         
         if (ros_parser->isConnected()) {
-            ros_led->setOn();
+            ros_led->on();
         }
         
         // Print status every 2 seconds
         if (loop_count % 20 == 0) {
             std::cout << "  Loop " << loop_count/10 << "s: ";
-            std::cout << (gps->getFixType() > 0 ? "GPS✓" : "GPS-") << " | ";
+            std::cout << (gps->getData().fix_quality > 0 ? "GPS✓" : "GPS-") << " | ";
             std::cout << (ros_parser->isConnected() ? "ROS✓" : "ROS-") << " | ";
             std::cout << "Pan:" << pan_pos << "° Tilt:" << tilt_pos << "°" << std::endl;
         }
@@ -330,10 +330,10 @@ int main() {
     std::cout << "✓ Control loop completed\n" << std::endl;
     
     // Final state
-    gimbal->setPan(0.0f);
-    gimbal->setTilt(0.0f);
-    gps_led->setOff();
-    ros_led->setOff();
+    gimbal->setTipAngle(0.0f, 0.0f);
+    gimbal->setTipAngle(0.0f, 0.0f);
+    gps_led->off();
+    ros_led->off();
     
     std::cout << "\n========================================" << std::endl;
     std::cout << "  Test Results" << std::endl;

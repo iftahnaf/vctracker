@@ -2,7 +2,7 @@
 #include "pico/stdlib.h"
 #include <cmath>
 
-StatusLED::StatusLED(uint pin) 
+StatusLED::StatusLED(uint32_t pin) 
     : pin_(pin), 
       state_(LEDState::OFF), 
       current_level_(false),

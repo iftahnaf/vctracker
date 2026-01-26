@@ -20,13 +20,33 @@ if [ ! -d "$PROJECT_DIR/.git" ]; then
     exit 1
 fi
 
-echo "Initializing git submodules..."
+echo "Initializing dependencies..."
 echo ""
 
 cd "$PROJECT_DIR"
 
-# Initialize all submodules recursively
-git submodule update --init --recursive
+# Initialize vcgimbal submodule (should already exist in most cases)
+if [ -d "vcgimbal" ] && [ ! -d "vcgimbal/.git" ]; then
+    echo "Setting up vcgimbal git info..."
+    cd vcgimbal
+    git init
+    git remote add origin git@github.com:iftahnaf/vcgimbal.git || git remote set-url origin git@github.com:iftahnaf/vcgimbal.git
+    cd ..
+fi
+
+if [ ! -d "vcgimbal/lib/pico-sdk" ]; then
+    echo "Initializing vcgimbal submodules..."
+    cd vcgimbal
+    git submodule update --init --recursive 2>/dev/null || true
+    cd ..
+fi
+
+# Initialize micro-ROS SDK
+if [ ! -d "lib/micro_ros_raspberrypi_pico_sdk" ]; then
+    mkdir -p lib
+    echo "Cloning micro-ROS SDK (this may take a minute)..."
+    git clone https://github.com/micro-ROS/micro_ros_raspberrypi_pico_sdk.git lib/micro_ros_raspberrypi_pico_sdk 2>&1 | grep -E "(Cloning|Unpacking|Receiving)" || true
+fi
 
 echo ""
 echo "Verifying submodules..."

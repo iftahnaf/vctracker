@@ -12,8 +12,10 @@ bash scripts/init-submodules.sh
 ### 2. Build Tests
 ```bash
 bash scripts/build.sh
-# Interactive menu will appear - select test with arrow keys
+# Interactive menu will appear - enter 1-8 to pick a target
 ```
+
+CI note: GitHub Actions (`test-builds.yml`) builds all primary targets (main, GPS, LEDs, gimbal, ROS) on every push/PR.
 
 ## Component Tests
 

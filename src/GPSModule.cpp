@@ -123,40 +123,35 @@ bool GPSModule::parseGPGGA(const std::vector<std::string>& fields) {
         return false;
     }
     
-    try {
-        // Parse latitude
-        if (!fields[2].empty() && !fields[3].empty()) {
-            current_data_.latitude = nmeaToDecimal(fields[2], fields[3][0]);
-        }
-        
-        // Parse longitude
-        if (!fields[4].empty() && !fields[5].empty()) {
-            current_data_.longitude = nmeaToDecimal(fields[4], fields[5][0]);
-        }
-        
-        // Parse fix quality
-        if (!fields[6].empty()) {
-            current_data_.fix_quality = std::atoi(fields[6].c_str());
-        }
-        
-        // Parse satellite count
-        if (!fields[7].empty()) {
-            current_data_.satellites = std::atoi(fields[7].c_str());
-        }
-        
-        // Parse altitude
-        if (!fields[9].empty()) {
-            current_data_.altitude = std::atof(fields[9].c_str());
-        }
-        
-        // Mark as valid if we have a fix
-        current_data_.valid = (current_data_.fix_quality > 0);
-        
-        return true;
-        
-    } catch (...) {
-        return false;
+    // Parse latitude
+    if (!fields[2].empty() && !fields[3].empty()) {
+        current_data_.latitude = nmeaToDecimal(fields[2], fields[3][0]);
     }
+    
+    // Parse longitude
+    if (!fields[4].empty() && !fields[5].empty()) {
+        current_data_.longitude = nmeaToDecimal(fields[4], fields[5][0]);
+    }
+    
+    // Parse fix quality
+    if (!fields[6].empty()) {
+        current_data_.fix_quality = std::atoi(fields[6].c_str());
+    }
+    
+    // Parse satellite count
+    if (!fields[7].empty()) {
+        current_data_.satellites = std::atoi(fields[7].c_str());
+    }
+    
+    // Parse altitude
+    if (!fields[9].empty()) {
+        current_data_.altitude = std::atof(fields[9].c_str());
+    }
+    
+    // Mark as valid if we have a fix
+    current_data_.valid = (current_data_.fix_quality > 0);
+    
+    return true;
 }
 
 double GPSModule::nmeaToDecimal(const std::string& nmea_coord, char direction) {

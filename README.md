@@ -2,6 +2,7 @@
 
 [![Release](https://img.shields.io/github/v/release/iftahnaf/vctracker?label=release&color=0e8a16)](https://github.com/iftahnaf/vctracker/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/iftahnaf/vctracker/ci.yml?branch=main&label=CI)](https://github.com/iftahnaf/vctracker/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/github/actions/workflow/status/iftahnaf/vctracker/test-builds.yml?branch=main&label=Test%20Builds)](https://github.com/iftahnaf/vctracker/actions/workflows/test-builds.yml)
 [![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi%20Pico-c51a4a)](https://www.raspberrypi.com/products/raspberry-pi-pico/)
 
 An intelligent antenna tracker system for Raspberry Pi Pico that automatically points a camera gimbal toward a moving target using GPS positioning and ROS2 integration.
@@ -75,10 +76,10 @@ sudo apt-get install -y build-essential cmake git gcc-arm-none-eabi python3
    ```
 
 3. **Build using interactive menu:**
-   ```bash
-   bash scripts/build.sh
-   # Use arrow keys to select build target, Enter to build
-   ```
+  ```bash
+  bash scripts/build.sh
+  # Enter 1-8 to select build target, then press Enter
+  ```
 
 ### Available Build Targets
 
@@ -89,6 +90,10 @@ sudo apt-get install -y build-essential cmake git gcc-arm-none-eabi python3
 - **micro-ROS Integration Test** - Test ROS2 connection
 - **System Integration Test** - Complete system test
 - **Build All Targets** - Build everything
+
+### CI / Test Builds
+- `ci.yml` builds release firmware and uploads artifacts
+- `test-builds.yml` builds all primary targets (main, GPS, LEDs, gimbal, ROS) on every push/PR
 
 ### Flash to Pico
 

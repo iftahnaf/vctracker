@@ -1,0 +1,64 @@
+name: Firmware Tests Build
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-tests:
+    name: Build test targets
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [ main, test_gps, test_leds, test_gimbal, test_ros ]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            gcc-arm-none-eabi \
+            libnewlib-arm-none-eabi \
+            libstdc++-arm-none-eabi-newlib \
+            python3
+
+      - name: Verify pico-sdk
+        run: |
+          ls -la vcgimbal/lib/pico-sdk || echo "pico-sdk not found!"
+          test -d vcgimbal/lib/pico-sdk || exit 1
+
+      - name: Configure CMake
+        run: |
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_TARGET=${{ matrix.target }} ..
+
+      - name: Build target
+        run: |
+          cd build
+          make -j"$(nproc)"
+
+      - name: Verify outputs
+        run: |
+          if [ "${{ matrix.target }}" = "main" ]; then
+            test -f build/bin/antenna_tracker.elf
+          else
+            test -f build/bin/${{ matrix.target }}.elf
+          fi
+          ls -lh build/bin | head
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}-${{ github.sha }}
+          path: build/bin/*.elf
+          retention-days: 7
