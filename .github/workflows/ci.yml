@@ -45,9 +45,9 @@ jobs:
     
     - name: Verify build outputs
       run: |
-        ls -lh build/bin/
-        test -f build/bin/antenna_tracker.uf2 || exit 1
-        test -f build/bin/antenna_tracker.bin || exit 1
+        ls -lh build/
+        test -f build/antenna_tracker.uf2 || exit 1
+        test -f build/antenna_tracker.bin || exit 1
         test -f build/bin/antenna_tracker.elf || exit 1
     
     - name: Upload firmware artifacts
@@ -55,22 +55,22 @@ jobs:
       with:
         name: firmware-${{ github.sha }}
         path: |
-          build/bin/antenna_tracker.uf2
-          build/bin/antenna_tracker.bin
+          build/antenna_tracker.uf2
+          build/antenna_tracker.bin
           build/bin/antenna_tracker.elf
         retention-days: 30
     
     - name: Create release artifacts
       if: github.event_name == 'release'
       run: |
-        cd build/bin
-        zip antenna_tracker_${{ github.ref_name }}.zip antenna_tracker.*
+        cd build
+        zip antenna_tracker_${{ github.ref_name }}.zip antenna_tracker.uf2 antenna_tracker.bin bin/antenna_tracker.elf
     
     - name: Upload release assets
       if: github.event_name == 'release'
       uses: softprops/action-gh-release@v1
       with:
-        files: build/bin/antenna_tracker_${{ github.ref_name }}.zip
+        files: build/antenna_tracker_${{ github.ref_name }}.zip
 
   lint:
     name: Code Lint
