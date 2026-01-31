@@ -9,11 +9,15 @@ Complete guide for testing the antenna tracker system and its individual compone
 bash scripts/init-submodules.sh
 ```
 
-### 2. Build Tests
+### 2. Build and Flash Tests
+
 ```bash
 bash scripts/build.sh
 # Interactive menu will appear - enter 1-8 to pick a target
+# When prompted, select yes to automatically flash to Pico
 ```
+
+**Auto-Detection:** The flash script automatically detects which .uf2 file was built (main, test_leds, test_gimbal, etc.) and flashes that specific target to your Pico. This works for any build target.
 
 CI note: GitHub Actions (`test-builds.yml`) builds all primary targets (main, GPS, LEDs, gimbal, ROS) on every push/PR.
 

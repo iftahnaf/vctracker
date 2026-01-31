@@ -186,10 +186,10 @@ GPIO 15   │ 20        21 │  GPIO 16 ── (Pan Servo)
 3. Connect GPS VCC to appropriate voltage (3.3V or 5V)
 4. Connect GPS GND to common ground
 
-### Step 5: Wire ROS UART
-1. Connect ROS device TX to Pico GPIO 5 (RX)
-2. Connect ROS device RX to Pico GPIO 4 (TX)
-3. Connect ROS device GND to common ground
+### Step 5: Connect to ROS2 Host
+1. Connect Pico to host computer via USB Micro cable
+2. micro-ROS will communicate over this USB connection
+3. No additional UART wiring needed for ROS2!
 
 ### Step 6: Wire Status LEDs
 1. GPS LED:

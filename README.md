@@ -41,8 +41,6 @@ An intelligent antenna tracker system for Raspberry Pi Pico that automatically p
 | **Tilt Servo Signal** | GPIO 17 | PWM output |
 | **GPS TX** | GPIO 1 (UART0 RX) | GPS → Pico |
 | **GPS RX** | GPIO 0 (UART0 TX) | Pico → GPS (optional) |
-| **ROS UART TX** | GPIO 5 (UART1 RX) | ROS device → Pico |
-| **ROS UART RX** | GPIO 4 (UART1 TX) | Pico → ROS device |
 | **GPS Status LED** | GPIO 20 | Via 220Ω resistor |
 | **ROS Status LED** | GPIO 21 | Via 220Ω resistor |
 | **Servo Power** | 5V External | Shared ground with Pico |
@@ -102,16 +100,24 @@ After build completes:
 Flash firmware to Raspberry Pi Pico? (yes/no)
 ```
 
-Automatic flashing:
+Automatic flashing works for **any target**:
 1. Hold BOOTSEL button on Pico
 2. Connect USB cable
 3. Answer `yes` when prompted
-4. Script auto-detects RPI-RP2 drive and flashes
+4. Script auto-detects the built .uf2 file (test_leds, test_gimbal, etc.)
+5. Script auto-detects RPI-RP2 drive and flashes
+
+The flash script automatically finds whichever .uf2 file was just built, so flashing works seamlessly with all build targets.
 
 ### Run ROS2 Agent (in separate terminal)
+
+The Pico communicates with ROS2 over **USB serial**:
+
 ```bash
 ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyACM0
 ```
+
+The USB cable handles both firmware flashing and ROS2 communication - no additional UART connection needed.
 
 ### Publish Target Positions
 ```bash

@@ -9,15 +9,16 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="$PROJECT_DIR/build"
 
-UF2_FILE="$BUILD_DIR/bin/antenna_tracker.uf2"
-
 echo "========================================="
 echo "  Flashing Raspberry Pi Pico"
 echo "========================================="
 
+# Find the most recently built .uf2 file
+UF2_FILE=$(find "$BUILD_DIR" -name "*.uf2" -type f ! -path "*/lib/*" ! -path "*/vcgimbal/*" -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+
 # Check if UF2 file exists
-if [ ! -f "$UF2_FILE" ]; then
-    echo "Error: $UF2_FILE not found"
+if [ -z "$UF2_FILE" ] || [ ! -f "$UF2_FILE" ]; then
+    echo "Error: No .uf2 file found in $BUILD_DIR"
     echo "Please build the project first: bash scripts/build.sh"
     exit 1
 fi

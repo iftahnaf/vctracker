@@ -9,9 +9,26 @@ The vctracker antenna tracker uses **micro-ROS** to receive target position data
 - ✅ **Native ROS2 messages** (sensor_msgs/NavSatFix)
 - ✅ **Automatic serialization/deserialization**
 - ✅ **Quality of Service (QoS) support**  
-- ✅ **Works over USB serial** (no extra UART needed)
+- ✅ **Works over USB serial** (single cable for everything)
+- ✅ **No additional UART adapter needed**
 - ✅ **Standard ROS2 tools compatibility**
 - ✅ **No custom bridge required**
+
+## Hardware Setup
+
+### USB Connection Only
+micro-ROS communicates with the host computer over the **same USB cable** used for:
+- Flashing firmware (BOOTLOADER mode)
+- Debug output (USB CDC)
+- ROS2 messages (micro-ROS agent)
+
+**No additional UART adapter or GPIO pins are needed for ROS2!**
+
+### Wiring
+- Pico **USB Micro** → Computer USB port (single cable)
+- GPS module on UART0 (GPIO 0/1) for position input
+- Servos on GPIO 16/17 for gimbal control
+- LEDs on GPIO 20/21 for status indication
 
 ## Architecture
 
@@ -84,23 +101,20 @@ bash scripts/flash.sh
 
 ### 3. Start micro-ROS Agent on Host
 
-Connect Pico via USB and start the agent:
+Connect Pico via USB and start the agent in a terminal:
 
 ```bash
-# Find Pico USB device
-ls /dev/ttyACM*
-# Usually /dev/ttyACM0
+# Find Pico USB device (typically /dev/ttyACM0)
+ls -la /dev/ttyACM*
 
-# Start agent
+# Start the agent (usually /dev/ttyACM0, but verify the device above)
 ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyACM0
 ```
 
-Expected output:
-```
-[1642424242.123456] info     | SerialAgentLinux.cpp | init    | running...
-[1642424242.223456] info     | Root.cpp             | set_verbose_level | logger verbose level: 4
-[1642424243.456789] info     | Root.cpp             | create_client | create | client_key: 0x12345678, session_id: 0x81
-[1642424243.567890] info     | SessionManager.hpp   | establish_session | session established | client_key: 0x12345678, address: 0
+**Linux Permission Fix** (if you get permission denied):
+```bash
+sudo usermod -a -G dialout $USER
+# Then log out and log back in
 ```
 
 ### 4. Verify Connection

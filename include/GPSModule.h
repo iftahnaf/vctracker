@@ -38,7 +38,7 @@ public:
      * @param rx_pin RX GPIO pin
      * @param baud_rate Baud rate (default 9600 for most GPS modules)
      */
-    GPSModule(uint uart_id, uint tx_pin, uint rx_pin, uint32_t baud_rate = 9600);
+    GPSModule(unsigned int uart_id, unsigned int tx_pin, unsigned int rx_pin, uint32_t baud_rate = 9600);
     
     /**
      * @brief Destructor
@@ -77,9 +77,9 @@ public:
     uint8_t getSatelliteCount() const;
 
 private:
-    uint uart_id_;
-    uint tx_pin_;
-    uint rx_pin_;
+    unsigned int uart_id_;
+    unsigned int tx_pin_;
+    unsigned int rx_pin_;
     uint32_t baud_rate_;
     
     GPSData current_data_;

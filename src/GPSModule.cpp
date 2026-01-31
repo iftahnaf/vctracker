@@ -6,7 +6,7 @@
 #include <vector>
 #include <sstream>
 
-GPSModule::GPSModule(uint uart_id, uint tx_pin, uint rx_pin, uint32_t baud_rate)
+GPSModule::GPSModule(unsigned int uart_id, unsigned int tx_pin, unsigned int rx_pin, uint32_t baud_rate)
     : uart_id_(uart_id),
       tx_pin_(tx_pin),
       rx_pin_(rx_pin),

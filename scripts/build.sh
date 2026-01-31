@@ -132,6 +132,16 @@ build_target() {
     # Create build directory
     echo -e "${BLUE}Creating build directory...${NC}"
     mkdir -p "$BUILD_DIR"
+    
+    # Clean CMake cache if BUILD_TARGET changed (prevents cached config)
+    if [ -f "$BUILD_DIR/CMakeCache.txt" ]; then
+        cached_target=$(grep "^BUILD_TARGET:" "$BUILD_DIR/CMakeCache.txt" | cut -d'=' -f2)
+        if [ "$cached_target" != "$cmake_target" ]; then
+            echo -e "${YELLOW}⚠${NC} BUILD_TARGET changed, clearing cache"
+            rm -rf "$BUILD_DIR/CMakeFiles" "$BUILD_DIR/CMakeCache.txt"
+        fi
+    fi
+    
     cd "$BUILD_DIR"
     
     # Configure CMake
@@ -180,7 +190,7 @@ build_target() {
             echo -e "${BLUE}Flashing...${NC}"
             
             # Find the .uf2 file
-            uf2_file=$(find bin -name "*.uf2" | head -1)
+            uf2_file=$(find . -maxdepth 2 -name "*.uf2" ! -path "./lib/*" ! -path "./vcgimbal/*" | head -1)
             
             if [ -z "$uf2_file" ]; then
                 echo -e "${RED}✗${NC} No .uf2 file found"
