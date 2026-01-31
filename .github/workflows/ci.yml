@@ -55,22 +55,23 @@ jobs:
       with:
         name: firmware-${{ github.sha }}
         path: |
-          build/antenna_tracker.uf2
-          build/antenna_tracker.bin
-          build/bin/antenna_tracker.elf
+          build/*.uf2
+          build/*.bin
+          build/bin/*.elf
+          build/bin/*.elf.map
         retention-days: 30
     
     - name: Create release artifacts
       if: github.event_name == 'release'
       run: |
         cd build
-        zip antenna_tracker_${{ github.ref_name }}.zip antenna_tracker.uf2 antenna_tracker.bin bin/antenna_tracker.elf
+        zip -r firmware_${{ github.ref_name }}.zip *.uf2 *.bin bin/*.elf
     
     - name: Upload release assets
       if: github.event_name == 'release'
       uses: softprops/action-gh-release@v1
       with:
-        files: build/antenna_tracker_${{ github.ref_name }}.zip
+        files: build/firmware_${{ github.ref_name }}.zip
 
   lint:
     name: Code Lint
@@ -103,7 +104,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-        persist-credentials: false
+        token: ${{ secrets.GITHUB_TOKEN }}
     
     - name: Setup Node.js
       uses: actions/setup-node@v4
@@ -112,6 +113,11 @@ jobs:
     
     - name: Install dependencies
       run: npm ci
+    
+    - name: Configure git for semantic-release
+      run: |
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git config --global user.name "github-actions[bot]"
     
     - name: Run semantic-release
       env:
