@@ -24,7 +24,7 @@ constexpr uint TILT_SERVO_PIN = 17;
 constexpr uint GPS_UART_ID = 0;
 constexpr uint GPS_TX_PIN = 0;
 constexpr uint GPS_RX_PIN = 1;
-constexpr uint32_t GPS_BAUD = 9600;
+constexpr uint32_t GPS_BAUD = 38400;  // M10G default
 
 constexpr uint GPS_LED_PIN = 20;
 constexpr uint ROS_LED_PIN = 21;

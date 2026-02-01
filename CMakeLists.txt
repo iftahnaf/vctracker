@@ -113,10 +113,10 @@ if(BUILD_TARGET STREQUAL "main" OR BUILD_TARGET STREQUAL "all")
     message(STATUS "Building: Main antenna tracker application")
 endif()
 
-# GPS test
+# GPS test - UBX protocol (works with M10G default settings)
 if(BUILD_TARGET STREQUAL "test_gps" OR BUILD_TARGET STREQUAL "all")
-    create_executable(test_gps examples/test_gps.cpp)
-    message(STATUS "Building: GPS module test")
+    create_executable(test_gps examples/test_gps_ubx.cpp)
+    message(STATUS "Building: GPS UBX protocol test")
 endif()
 
 # LED test
@@ -135,6 +135,18 @@ endif()
 if(BUILD_TARGET STREQUAL "test_ros" OR BUILD_TARGET STREQUAL "all")
     create_executable(test_ros examples/test_ros.cpp)
     message(STATUS "Building: micro-ROS integration test")
+endif()
+
+# Minimal ROS test
+if(BUILD_TARGET STREQUAL "test_ros_minimal" OR BUILD_TARGET STREQUAL "all")
+    add_executable(test_ros_minimal examples/test_ros_minimal.cpp)
+    target_link_libraries(test_ros_minimal
+        pico_stdlib
+        hardware_gpio
+        ${MICROROS_LIBRARY}
+    )
+    pico_add_extra_outputs(test_ros_minimal)
+    message(STATUS "Building: Minimal micro-ROS test")
 endif()
 
 # System integration test

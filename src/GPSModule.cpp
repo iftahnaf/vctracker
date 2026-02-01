@@ -3,8 +3,66 @@
 #include "pico/stdlib.h"
 #include <cstring>
 #include <cstdlib>
-#include <vector>
-#include <sstream>
+
+/**
+ * UBX NAV-PVT message structure (0x01 0x07)
+ * Size: 92 bytes payload
+ */
+struct UBXNavPVT {
+    uint32_t iTOW;
+    uint16_t year;
+    uint8_t month, day, hour, min, sec;
+    uint8_t valid;
+    uint32_t tAcc;
+    int32_t nano;
+    uint8_t fixType;
+    uint8_t flags;
+    uint8_t numSV;
+    int32_t lon, lat;
+    int32_t height;
+    int32_t hMSL;
+    uint32_t hAcc, vAcc;
+    int32_t velN, velE, velD;
+    int32_t gSpeed;
+    int32_t heading;
+};
+
+static void ubx_checksum(const uint8_t* data, size_t len, uint8_t* ck_a, uint8_t* ck_b) {
+    *ck_a = 0;
+    *ck_b = 0;
+    for (size_t i = 0; i < len; i++) {
+        *ck_a += data[i];
+        *ck_b += *ck_a;
+    }
+}
+
+static bool parse_ubx_navpvt(const uint8_t* payload, size_t len, UBXNavPVT* pvt) {
+    if (len < 92) return false;
+    
+    size_t offset = 0;
+    pvt->iTOW = *(uint32_t*)(payload + offset); offset += 4;
+    pvt->year = *(uint16_t*)(payload + offset); offset += 2;
+    pvt->month = payload[offset++];
+    pvt->day = payload[offset++];
+    pvt->hour = payload[offset++];
+    pvt->min = payload[offset++];
+    pvt->sec = payload[offset++];
+    pvt->valid = payload[offset++];
+    pvt->tAcc = *(uint32_t*)(payload + offset); offset += 4;
+    pvt->nano = *(int32_t*)(payload + offset); offset += 4;
+    pvt->fixType = payload[offset++];
+    pvt->flags = payload[offset++];
+    offset++;
+    pvt->numSV = payload[offset++];
+    pvt->lon = *(int32_t*)(payload + offset); offset += 4;
+    pvt->lat = *(int32_t*)(payload + offset); offset += 4;
+    pvt->height = *(int32_t*)(payload + offset); offset += 4;
+    pvt->hMSL = *(int32_t*)(payload + offset); offset += 4;
+    pvt->hAcc = *(uint32_t*)(payload + offset); offset += 4;
+    pvt->vAcc = *(uint32_t*)(payload + offset); offset += 4;
+    
+    return true;
+}
 
 GPSModule::GPSModule(unsigned int uart_id, unsigned int tx_pin, unsigned int rx_pin, uint32_t baud_rate)
     : uart_id_(uart_id),
@@ -42,27 +100,61 @@ bool GPSModule::update() {
     
     bool new_data = false;
     
-    // Read available characters
+    // Read available bytes and look for UBX messages
     while (uart_is_readable(uart)) {
-        char c = uart_getc(uart);
+        uint8_t c = uart_getc(uart);
+        ubx_buffer_[ubx_buffer_idx_] = c;
+        ubx_buffer_idx_++;
         
-        if (c == '\n' || c == '\r') {
-            if (nmea_buffer_.length() > 0) {
-                // Process complete NMEA sentence
-                if (parseNMEA(nmea_buffer_)) {
-                    new_data = true;
+        // Look for UBX sync sequence
+        if (ubx_buffer_idx_ >= 2) {
+            if (ubx_buffer_[ubx_buffer_idx_ - 2] == 0xB5 && ubx_buffer_[ubx_buffer_idx_ - 1] == 0x62) {
+                // Found sync, reset to start of message
+                ubx_buffer_[0] = 0xB5;
+                ubx_buffer_[1] = 0x62;
+                ubx_buffer_idx_ = 2;
+                continue;
+            }
+        }
+        
+        // Need at least header + length to know payload size
+        if (ubx_buffer_idx_ >= 6) {
+            uint16_t payload_len = ubx_buffer_[4] | (ubx_buffer_[5] << 8);
+            uint16_t total_len = payload_len + 8;  // header(2) + class/id(2) + length(2) + payload + checksum(2)
+            
+            if (ubx_buffer_idx_ >= total_len) {
+                // Have complete message, verify checksum
+                uint8_t ck_a, ck_b;
+                ubx_checksum(ubx_buffer_ + 2, payload_len + 4, &ck_a, &ck_b);
+                
+                if (ck_a == ubx_buffer_[total_len - 2] && ck_b == ubx_buffer_[total_len - 1]) {
+                    // Valid message
+                    uint8_t msg_class = ubx_buffer_[2];
+                    uint8_t msg_id = ubx_buffer_[3];
+                    
+                    // NAV-PVT = class 0x01, id 0x07
+                    if (msg_class == 0x01 && msg_id == 0x07) {
+                        UBXNavPVT pvt;
+                        if (parse_ubx_navpvt(ubx_buffer_ + 6, payload_len, &pvt)) {
+                            current_data_.latitude = pvt.lat / 1e7;
+                            current_data_.longitude = pvt.lon / 1e7;
+                            current_data_.altitude = pvt.hMSL / 1000.0;
+                            current_data_.satellites = pvt.numSV;
+                            current_data_.fix_quality = (pvt.fixType > 0) ? pvt.fixType : 0;
+                            current_data_.valid = (pvt.fixType > 0);
+                            new_data = true;
+                        }
+                    }
                 }
-                nmea_buffer_.clear();
+                
+                // Reset for next message
+                ubx_buffer_idx_ = 0;
             }
-        } else if (c == '$') {
-            // Start of new NMEA sentence
-            nmea_buffer_.clear();
-            nmea_buffer_ += c;
-        } else {
-            // Accumulate sentence
-            if (nmea_buffer_.length() < 200) { // Limit buffer size
-                nmea_buffer_ += c;
-            }
+        }
+        
+        // Safety: reset if buffer gets too full
+        if (ubx_buffer_idx_ >= sizeof(ubx_buffer_)) {
+            ubx_buffer_idx_ = 0;
         }
     }
     
@@ -79,149 +171,4 @@ bool GPSModule::hasFix() const {
 
 uint8_t GPSModule::getSatelliteCount() const {
     return current_data_.satellites;
-}
-
-bool GPSModule::parseNMEA(const std::string& sentence) {
-    // Verify checksum
-    if (!verifyChecksum(sentence)) {
-        return false;
-    }
-    
-    // Split sentence into fields
-    std::vector<std::string> fields = split(sentence, ',');
-    
-    if (fields.empty()) {
-        return false;
-    }
-    
-    // Check sentence type
-    std::string sentence_type = fields[0];
-    
-    if (sentence_type == "$GPGGA" || sentence_type == "$GNGGA") {
-        return parseGPGGA(fields);
-    }
-    
-    return false;
-}
-
-bool GPSModule::parseGPGGA(const std::vector<std::string>& fields) {
-    // GPGGA format:
-    // 0: $GPGGA
-    // 1: Time (hhmmss.ss)
-    // 2: Latitude (ddmm.mmmm)
-    // 3: N/S
-    // 4: Longitude (dddmm.mmmm)
-    // 5: E/W
-    // 6: Fix quality (0=no fix, 1=GPS, 2=DGPS)
-    // 7: Number of satellites
-    // 8: HDOP
-    // 9: Altitude
-    // 10: M (meters)
-    // ... checksum
-    
-    if (fields.size() < 11) {
-        return false;
-    }
-    
-    // Parse latitude
-    if (!fields[2].empty() && !fields[3].empty()) {
-        current_data_.latitude = nmeaToDecimal(fields[2], fields[3][0]);
-    }
-    
-    // Parse longitude
-    if (!fields[4].empty() && !fields[5].empty()) {
-        current_data_.longitude = nmeaToDecimal(fields[4], fields[5][0]);
-    }
-    
-    // Parse fix quality
-    if (!fields[6].empty()) {
-        current_data_.fix_quality = std::atoi(fields[6].c_str());
-    }
-    
-    // Parse satellite count
-    if (!fields[7].empty()) {
-        current_data_.satellites = std::atoi(fields[7].c_str());
-    }
-    
-    // Parse altitude
-    if (!fields[9].empty()) {
-        current_data_.altitude = std::atof(fields[9].c_str());
-    }
-    
-    // Mark as valid if we have a fix
-    current_data_.valid = (current_data_.fix_quality > 0);
-    
-    return true;
-}
-
-double GPSModule::nmeaToDecimal(const std::string& nmea_coord, char direction) {
-    if (nmea_coord.empty()) {
-        return 0.0;
-    }
-    
-    // Find decimal point
-    size_t dot_pos = nmea_coord.find('.');
-    if (dot_pos == std::string::npos) {
-        return 0.0;
-    }
-    
-    // Degrees are before last 2 digits of integer part
-    // e.g., "4807.038" = 48 degrees, 07.038 minutes
-    std::string degrees_str;
-    std::string minutes_str;
-    
-    if (dot_pos >= 2) {
-        degrees_str = nmea_coord.substr(0, dot_pos - 2);
-        minutes_str = nmea_coord.substr(dot_pos - 2);
-    } else {
-        return 0.0;
-    }
-    
-    double degrees = std::atof(degrees_str.c_str());
-    double minutes = std::atof(minutes_str.c_str());
-    
-    double decimal = degrees + (minutes / 60.0);
-    
-    // Apply direction
-    if (direction == 'S' || direction == 'W') {
-        decimal = -decimal;
-    }
-    
-    return decimal;
-}
-
-bool GPSModule::verifyChecksum(const std::string& sentence) {
-    // Find checksum separator
-    size_t star_pos = sentence.find('*');
-    if (star_pos == std::string::npos) {
-        return false; // No checksum
-    }
-    
-    // Calculate checksum (XOR of all characters between $ and *)
-    uint8_t calc_checksum = 0;
-    for (size_t i = 1; i < star_pos; i++) {
-        calc_checksum ^= sentence[i];
-    }
-    
-    // Extract provided checksum
-    if (star_pos + 2 >= sentence.length()) {
-        return false;
-    }
-    
-    std::string checksum_str = sentence.substr(star_pos + 1, 2);
-    uint8_t provided_checksum = std::strtol(checksum_str.c_str(), nullptr, 16);
-    
-    return (calc_checksum == provided_checksum);
-}
-
-std::vector<std::string> GPSModule::split(const std::string& str, char delimiter) {
-    std::vector<std::string> tokens;
-    std::string token;
-    std::istringstream token_stream(str);
-    
-    while (std::getline(token_stream, token, delimiter)) {
-        tokens.push_back(token);
-    }
-    
-    return tokens;
 }

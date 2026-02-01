@@ -2,8 +2,7 @@
 #define GPS_MODULE_H
 
 #include <cstdint>
-#include <string>
-#include <vector>
+#include <cstddef>
 
 /**
  * @struct GPSData
@@ -24,10 +23,11 @@ struct GPSData {
 
 /**
  * @class GPSModule
- * @brief GPS module interface for UART-based GPS receivers
+ * @brief GPS module interface for UBX-based receivers (u-blox M10G, etc.)
  * 
- * Supports NMEA 0183 protocol parsing (specifically GPGGA and GPRMC sentences)
- * for extracting position, fix quality, and satellite count.
+ * Parses UBX binary protocol NAV-PVT messages (0x01 0x07) to extract 
+ * position, fix quality, and satellite count.
+ * Works with M10G modules at their default 38400 baud rate.
  */
 class GPSModule {
 public:
@@ -36,9 +36,9 @@ public:
      * @param uart_id UART peripheral ID (0 or 1 on Pico)
      * @param tx_pin TX GPIO pin
      * @param rx_pin RX GPIO pin
-     * @param baud_rate Baud rate (default 9600 for most GPS modules)
+     * @param baud_rate Baud rate (default 38400 for M10G)
      */
-    GPSModule(unsigned int uart_id, unsigned int tx_pin, unsigned int rx_pin, uint32_t baud_rate = 9600);
+    GPSModule(unsigned int uart_id, unsigned int tx_pin, unsigned int rx_pin, uint32_t baud_rate = 38400);
     
     /**
      * @brief Destructor
@@ -52,7 +52,7 @@ public:
     bool init();
 
     /**
-     * @brief Update GPS data by reading and parsing UART data
+     * @brief Update GPS data by reading and parsing UBX messages
      * Call this regularly in the main loop
      * @return true if new data was parsed
      */
@@ -83,44 +83,11 @@ private:
     uint32_t baud_rate_;
     
     GPSData current_data_;
-    std::string nmea_buffer_;
     
-    /**
-     * @brief Parse NMEA sentence
-     * @param sentence NMEA sentence string
-     * @return true if successfully parsed
-     */
-    bool parseNMEA(const std::string& sentence);
-    
-    /**
-     * @brief Parse GPGGA sentence (Global Positioning System Fix Data)
-     * @param fields Array of comma-separated fields
-     * @return true if successfully parsed
-     */
-    bool parseGPGGA(const std::vector<std::string>& fields);
-    
-    /**
-     * @brief Convert NMEA coordinate format to decimal degrees
-     * @param nmea_coord NMEA coordinate (DDMM.MMMM or DDDMM.MMMM)
-     * @param direction Direction character (N/S/E/W)
-     * @return Decimal degrees
-     */
-    double nmeaToDecimal(const std::string& nmea_coord, char direction);
-    
-    /**
-     * @brief Verify NMEA checksum
-     * @param sentence NMEA sentence with checksum
-     * @return true if checksum is valid
-     */
-    bool verifyChecksum(const std::string& sentence);
-    
-    /**
-     * @brief Split string by delimiter
-     * @param str String to split
-     * @param delimiter Delimiter character
-     * @return Vector of substrings
-     */
-    std::vector<std::string> split(const std::string& str, char delimiter);
+    // UBX message buffer (max NAV-PVT payload is 92 bytes + 8 header/checksum)
+    static constexpr size_t MAX_UBX_BUFFER = 256;
+    uint8_t ubx_buffer_[MAX_UBX_BUFFER];
+    size_t ubx_buffer_idx_ = 0;
 };
 
 #endif // GPS_MODULE_H
