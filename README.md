@@ -5,24 +5,26 @@
 [![Tests](https://img.shields.io/github/actions/workflow/status/iftahnaf/vctracker/test-builds.yml?branch=main&label=Test%20Builds)](https://github.com/iftahnaf/vctracker/actions/workflows/test-builds.yml)
 [![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi%20Pico-c51a4a)](https://www.raspberrypi.com/products/raspberry-pi-pico/)
 
-An intelligent antenna tracker system for Raspberry Pi Pico that automatically points a camera gimbal toward a moving target using GPS positioning and ROS2 integration.
+An intelligent antenna tracker system for Raspberry Pi Pico that automatically points a camera gimbal toward a moving target using GPS positioning and USB serial communication for target updates.
 
 ## Features
 
-- **Dual GPS System**: Onboard GPS for tracker position + ROS2 NavSatFix messages for target position
+- **Dual GPS System**: Onboard GPS module for tracker position + USB serial protocol for target position
 - **Automatic Tracking**: Real-time pan/tilt calculation using geodetic algorithms
 - **Servo Gimbal Control**: 2-axis MG90S servo gimbal via [vcgimbal library](vcgimbal/)
 - **Visual Status Indicators**: 
   - GPS Fix LED (off/slow/fast blink based on fix quality)
-  - ROS Data LED (indicates message reception freshness)
+  - Target Data LED (indicates successful target data reception)
 - **Safety Features**:
   - Minimum elevation angle limits
   - Servo range protection
   - Message timeout detection
 - **UART Communication**:
-  - UART0: GPS module (9600 baud, NMEA protocol)
-  - UART1: ROS2 messages (115200 baud, CSV format)
-- **USB Serial Output**: Debug logging via USB CDC
+  - UART0: GPS module (38400 baud, UBX binary protocol)
+  - UART1: Available for expansion
+- **USB Serial Communication**:
+  - Simple binary struct protocol for target data (lat/lon/alt)
+  - Debug logging via USB CDC (115200 baud)
 
 ## Hardware Requirements
 
@@ -51,13 +53,12 @@ See [docs/hardware.md](docs/hardware.md) for detailed wiring diagrams.
 
 ### Prerequisites
 - Ubuntu 20.04+ (or similar Linux distribution)
-- ROS2 Humble (or compatible version)
-- micro-ROS agent: `sudo apt install ros-humble-micro-ros-agent`
+- Python3 with pyserial: `pip3 install pyserial`
 
 **Development Tools:**
 ```bash
 sudo apt-get update
-sudo apt-get install -y build-essential cmake git gcc-arm-none-eabi python3
+sudo apt-get install -y build-essential cmake git gcc-arm-none-eabi python3 python3-pip
 ```
 
 ### Clone and Build
@@ -82,10 +83,10 @@ sudo apt-get install -y build-essential cmake git gcc-arm-none-eabi python3
 ### Available Build Targets
 
 - **Main Antenna Tracker** - Full antenna tracking application
-- **GPS Module Test** - Test GPS reception and parsing
+- **GPS Module Test** - Test GPS reception and UBX parsing
 - **Status LED Test** - Test LED control patterns
 - **Gimbal Servo Test** - Test servo movement
-- **micro-ROS Integration Test** - Test ROS2 connection
+- **Serial USB Test** - Test USB target data protocol
 - **System Integration Test** - Complete system test
 - **Build All Targets** - Build everything
 
@@ -109,46 +110,57 @@ Automatic flashing works for **any target**:
 
 The flash script automatically finds whichever .uf2 file was just built, so flashing works seamlessly with all build targets.
 
-### Run ROS2 Agent (in separate terminal)
+## USB Serial Protocol
 
-The Pico communicates with ROS2 over **USB serial**:
+The Pico receives target position updates over USB using a simple binary protocol:
 
-```bash
-ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyACM0
+**Target Data Packet (14 bytes):**
+```
+Byte 0:    Message Type (0x01 for TARGET_DATA)
+Bytes 1-4: Latitude (float32, IEEE 754)
+Bytes 5-8: Longitude (float32, IEEE 754)
+Bytes 9-12: Altitude (float32, IEEE 754)
+Byte 13:   Checksum (XOR of bytes 0-12)
 ```
 
-The USB cable handles both firmware flashing and ROS2 communication - no additional UART connection needed.
+**Response Messages:**
+- `0x02` - ACK (data received successfully)
+- `0x03 0xXX` - ERROR (error code in second byte)
 
-### Publish Target Positions
-```bash
-ros2 topic pub /target/gps/fix sensor_msgs/msg/NavSatFix \
-  "header: {frame_id: 'gps'}
-   latitude: 37.7749
-   longitude: -122.4194
-   altitude: 10.5
-   position_covariance: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
-   position_covariance_type: 2" -r 1
+**Example Python Usage:**
+```python
+import serial
+import struct
+
+# Create packet
+packet = struct.pack('<B', 0x01)  # TARGET_DATA
+packet += struct.pack('<f', 37.7749)   # latitude
+packet += struct.pack('<f', -122.4194)  # longitude
+packet += struct.pack('<f', 52.0)       # altitude
+
+# Calculate XOR checksum
+checksum = 0
+for byte in packet:
+    checksum ^= byte
+packet += struct.pack('<B', checksum)
+
+# Send to Pico
+ser = serial.Serial('/dev/ttyACM0', 115200)
+ser.write(packet)
 ```
+
+See [scripts/test_serial_usb.py](scripts/test_serial_usb.py) for a complete working example.
 
 ## Testing
 
 Complete testing guide: [docs/testing.md](docs/testing.md)
 
 Test each component individually:
-- **GPS** - UART reception, NMEA parsing
+- **GPS** - UART reception, UBX parsing
 - **LEDs** - GPIO control, patterns
 - **Gimbal** - Servo movement and positioning
-- **micro-ROS** - Agent connection and messages
+- **USB Serial** - Target data protocol
 - **System** - All components integrated
-
-## ROS2 Integration
-
-The tracker uses **micro-ROS** for native ROS2 communication:
-- **Subscribes to**: `/target/gps/fix` (sensor_msgs/NavSatFix)
-- **Transport**: USB Serial with micro-ROS agent
-- **Features**: Proper DDS messages, QoS policies, node management
-
-See [docs/ros2-integration.md](docs/ros2-integration.md) for complete setup and examples.
 
 ## Project Structure
 

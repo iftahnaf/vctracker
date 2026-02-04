@@ -115,7 +115,8 @@ endif()
 
 # GPS test - UBX protocol (works with M10G default settings)
 if(BUILD_TARGET STREQUAL "test_gps" OR BUILD_TARGET STREQUAL "all")
-    create_executable(test_gps examples/test_gps_ubx.cpp)
+    create_executable(test_gps examples/test_gps.cpp)
+    message(STATUS "Building: GPS UBX binary protocol test")
     message(STATUS "Building: GPS UBX protocol test")
 endif()
 
@@ -131,23 +132,29 @@ if(BUILD_TARGET STREQUAL "test_gimbal" OR BUILD_TARGET STREQUAL "all")
     message(STATUS "Building: Gimbal servo test")
 endif()
 
-# ROS test
-if(BUILD_TARGET STREQUAL "test_ros" OR BUILD_TARGET STREQUAL "all")
-    create_executable(test_ros examples/test_ros.cpp)
-    message(STATUS "Building: micro-ROS integration test")
+# USB Target Data test (serial protocol, no ROS)
+if(BUILD_TARGET STREQUAL "test_serial" OR BUILD_TARGET STREQUAL "all")
+    create_executable(test_serial examples/test_serial.cpp)
+    message(STATUS "Building: USB Serial Target Data receiver test")
 endif()
 
-# Minimal ROS test
-if(BUILD_TARGET STREQUAL "test_ros_minimal" OR BUILD_TARGET STREQUAL "all")
-    add_executable(test_ros_minimal examples/test_ros_minimal.cpp)
-    target_link_libraries(test_ros_minimal
-        pico_stdlib
-        hardware_gpio
-        ${MICROROS_LIBRARY}
-    )
-    pico_add_extra_outputs(test_ros_minimal)
-    message(STATUS "Building: Minimal micro-ROS test")
+# Legacy ROS test name support (maps to test_serial)
+if(BUILD_TARGET STREQUAL "test_ros" OR BUILD_TARGET STREQUAL "all")
+    create_executable(test_ros examples/test_serial.cpp)
+    message(STATUS "Building: USB Serial Target Data receiver test (via test_ros)")
 endif()
+
+# Minimal ROS test (commented out - ROS removed)
+# if(BUILD_TARGET STREQUAL "test_ros_minimal" OR BUILD_TARGET STREQUAL "all")
+#     add_executable(test_ros_minimal examples/test_ros_minimal.cpp)
+#     target_link_libraries(test_ros_minimal
+#         pico_stdlib
+#         hardware_gpio
+#         ${MICROROS_LIBRARY}
+#     )
+#     pico_add_extra_outputs(test_ros_minimal)
+#     message(STATUS "Building: Minimal micro-ROS test")
+# endif()
 
 # System integration test
 if(BUILD_TARGET STREQUAL "system_test" OR BUILD_TARGET STREQUAL "all")

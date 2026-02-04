@@ -4,9 +4,20 @@
 #include <cstring>
 
 /**
- * @brief Parse UBX binary protocol from GPS
+ * @brief GPS Module Test - UBX Binary Protocol Parser
  * 
- * The M10G outputs UBX by default. Parse NAV-PVT messages directly.
+ * Tests the GPS module (M10G) with UBX binary protocol.
+ * The M10G outputs UBX by default at 38400 baud.
+ * Parses NAV-PVT messages to extract position, altitude, and fix data.
+ * 
+ * Expected Output:
+ * - UART0 initialized at 38400 baud
+ * - UBX NAV-PVT messages parsed and displayed
+ * - Position, altitude, satellites, and fix type shown
+ * 
+ * Hardware Required:
+ * - GPIO 0 (TX), GPIO 1 (RX) connected to GPS module
+ * - GPS module powered (M10G or compatible UBX device)
  */
 
 constexpr uint GPS_UART_ID = 0;
@@ -81,8 +92,10 @@ int main() {
     sleep_ms(2000);
     
     std::cout << "\n========================================" << std::endl;
-    std::cout << "  GPS UBX Protocol Parser Test" << std::endl;
+    std::cout << "  GPS Module Test - UBX Binary Protocol" << std::endl;
     std::cout << "========================================\n" << std::endl;
+    
+    std::cout << "Initializing UART" << GPS_UART_ID << " at " << GPS_BAUD << " baud..." << std::endl;
     
     uart_inst_t* uart = get_uart(GPS_UART_ID);
     uart_init(uart, GPS_BAUD);
@@ -91,7 +104,8 @@ int main() {
     uart_set_format(uart, 8, 1, UART_PARITY_NONE);
     uart_set_fifo_enabled(uart, true);
     
-    std::cout << "Listening for UBX NAV-PVT messages..." << std::endl;
+    std::cout << "✓ UART initialized" << std::endl;
+    std::cout << "\nListening for UBX NAV-PVT messages..." << std::endl;
     std::cout << "Waiting for GPS fix...\n" << std::endl;
     
     uint8_t buffer[256];
@@ -179,10 +193,13 @@ int main() {
     std::cout << "========================================\n" << std::endl;
     
     if (msg_count > 0) {
-        std::cout << "✓ SUCCESS! Parsed " << msg_count << " UBX messages" << std::endl;
+        std::cout << "✓ SUCCESS! Parsed " << msg_count << " UBX NAV-PVT messages" << std::endl;
     } else {
         std::cout << "✗ No valid UBX messages found" << std::endl;
+        std::cout << "  Check GPS module connection and power" << std::endl;
     }
+    
+    std::cout << std::endl;
     
     return msg_count > 0 ? 0 : -1;
 }

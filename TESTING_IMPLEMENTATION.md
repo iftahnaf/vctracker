@@ -26,12 +26,12 @@ Complete testing framework and interactive build system has been implemented for
 - **Movements**: 8 predefined positions, pan sweep, tilt sweep, circular motion
 - **Success Criteria**: Smooth motion to all positions
 
-#### [examples/test_ros.cpp](examples/test_ros.cpp) - micro-ROS Integration Test
-- **Tests**: USB CDC, micro-ROS transport, agent connection, subscriptions
-- **Duration**: 60 seconds (30s timeout for agent)
-- **Connection**: Waits for micro-ROS agent on host
-- **Message**: Receives sensor_msgs/NavSatFix messages
-- **Success Criteria**: Connection to agent and message reception
+#### [examples/test_serial.cpp](examples/test_serial.cpp) - USB Serial Protocol Test
+- **Tests**: USB CDC, binary protocol packet reception, checksum validation
+- **Duration**: Continuous, processes incoming target data packets
+- **Protocol**: Simple struct-based (lat/lon/alt + checksum)
+- **Response**: Sends ACK or ERROR messages
+- **Success Criteria**: Blue LED blinks on valid data, processes multiple packets
 
 #### [examples/system_test.cpp](examples/system_test.cpp) - System Integration Test
 - **Tests**: All components working together end-to-end
@@ -57,11 +57,11 @@ Complete testing framework and interactive build system has been implemented for
 
 **Build Targets**:
 ```
-1. Main Antenna Tracker       - Full application with ROS2
+1. Main Antenna Tracker       - Full application with GPS tracking
 2. GPS Module Test            - GPS UART and NMEA parsing
 3. Status LED Test            - LED GPIO control
 4. Gimbal Servo Test          - PWM servo control
-5. micro-ROS Integration Test - ROS2 agent connection
+5. USB Serial Protocol Test  - Simple binary protocol over USB
 6. System Integration Test    - Complete system simulation
 7. Build All Targets          - All of above
 8. Exit                       - Back to terminal
@@ -82,7 +82,7 @@ bash scripts/build.sh all           # Build all targets
 
 #### [scripts/init-submodules.sh](scripts/init-submodules.sh) - New Helper Script
 - Initializes all git submodules automatically
-- Verifies pico-sdk, micro-ROS SDK, vcgimbal
+- Verifies pico-sdk, vcgimbal submodules
 - Provides setup instructions
 - Run once after cloning:
   ```bash
@@ -116,9 +116,8 @@ cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_TARGET=test_gps
 
 ### 5. Configuration Files
 
-#### [.gitmodules](.gitmodules) - Updated Submodule Configuration
+#### [.gitmodules](.gitmodules) - Submodule Configuration
 - `vcgimbal` - Gimbal control library
-- `lib/micro_ros_raspberrypi_pico_sdk` - micro-ROS SDK (NEW)
 
 **Automatic initialization** when cloning:
 ```bash
@@ -136,10 +135,10 @@ git submodule update --init --recursive
 - Testing section with reference to docs/testing.md
 
 #### [docs/setup.md](docs/setup.md) - Updated Prerequisites
-- ROS2 and micro-ROS agent installation
-- Alternative build-from-source instructions
+- Development tools installation
+- Python3 with pyserial for USB testing
 - Updated submodule verification
-- New "Starting micro-ROS Agent" section
+- New "USB Serial Protocol" section
 
 ## File Structure
 
@@ -150,7 +149,7 @@ examples/
 ├── test_gps.cpp          # GPS module test
 ├── test_leds.cpp         # Status LED test
 ├── test_gimbal.cpp       # Gimbal servo test
-├── test_ros.cpp          # micro-ROS integration test
+├── test_serial.cpp       # USB serial protocol test
 └── system_test.cpp       # System integration test
 ```
 
@@ -159,7 +158,8 @@ examples/
 scripts/
 ├── build.sh              # Interactive build with menu and flash
 ├── init-submodules.sh    # Git submodule initialization
-└── flash.sh              # (Legacy, functionality moved to build.sh)
+├── flash.sh              # (Legacy, functionality moved to build.sh)
+└── test_serial_usb.py    # USB serial protocol test script
 ```
 
 ### Documentation
@@ -167,8 +167,7 @@ scripts/
 docs/
 ├── hardware.md           # Wiring diagrams
 ├── setup.md              # Development environment setup
-├── ros2-integration.md   # ROS2 and micro-ROS guide
-├── testing.md            # Testing guide (NEW)
+├── testing.md            # Testing guide
 ├── architecture.md       # System architecture
 └── quickstart.md         # Quick reference
 ```
@@ -207,7 +206,7 @@ bash scripts/build.sh test_gps      # Build GPS test
 1. **test_leds** (5 min) - Quickest, verify GPIO
 2. **test_gimbal** (10 min) - Verify servo response
 3. **test_gps** (60+ sec) - Depends on satellite acquisition
-4. **test_ros** (with agent on host) - Verify ROS2 connection
+4. **test_serial** (continuous) - Verify USB protocol and target data
 5. **system_test** (2-3 min) - Full integration
 6. **main** (continuous) - Actual antenna tracking
 

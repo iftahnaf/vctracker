@@ -19,7 +19,7 @@ bash scripts/build.sh
 
 **Auto-Detection:** The flash script automatically detects which .uf2 file was built (main, test_leds, test_gimbal, etc.) and flashes that specific target to your Pico. This works for any build target.
 
-CI note: GitHub Actions (`test-builds.yml`) builds all primary targets (main, GPS, LEDs, gimbal, ROS) on every push/PR.
+CI note: GitHub Actions (`test-builds.yml`) builds all primary targets (main, GPS, LEDs, gimbal, serial) on every push/PR.
 
 ## Component Tests
 
@@ -87,7 +87,7 @@ bash scripts/build.sh
 1. Both LEDs light steadily (2 seconds)
 2. LED1 blinks 2 Hz on/off pattern
 3. LED2 blinks 5 Hz rapid pattern
-4. LEDs alternate on/off (simulating GPS/ROS states)
+4. LEDs alternate on/off (simulating GPS/Serial states)
 5. Both pulse together at 1 Hz
 
 **Troubleshooting:**
@@ -147,72 +147,79 @@ bash scripts/build.sh
   - Verify 50 Hz frequency in CMakeLists.txt
 
 ---
-
-### micro-ROS Integration Test
+### USB Serial Protocol Test
 
 **What it tests:**
 - USB CDC Serial initialization
-- micro-ROS transport layer
-- Connection to micro-ROS agent
-- Subscription to /target/gps/fix topic
-- Reception of sensor_msgs/NavSatFix messages
-- Agent connection detection and timeout
+- Binary protocol packet reception
+- Checksum validation
+- Target data parsing (latitude, longitude, altitude)
+- ACK/Error response sending
 
 **Prerequisites:**
 - Raspberry Pi Pico connected to host via USB
-- ROS2 Humble (or compatible) installed on host
-- micro-ROS agent installed: `sudo apt install ros-humble-micro-ros-agent`
-- Host connected to same network
+- Python3 with pyserial: `pip3 install pyserial`
 
 **Run on Pico:**
 ```bash
 bash scripts/build.sh
-# Select "micro-ROS Integration Test"
+# Select "Serial USB Test" (option 5)
 ```
 
-**Run on Host Computer (in separate terminal):**
+**Run on Host Computer:**
 ```bash
-# Terminal 1: Start micro-ROS agent
-ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyACM0
-
-# Terminal 2: Publish test messages
-ros2 topic pub /target/gps/fix sensor_msgs/msg/NavSatFix \
-  "header: {frame_id: 'gps'}
-   latitude: 37.7749
-   longitude: -122.4194
-   altitude: 10.5
-   position_covariance: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
-   position_covariance_type: 2" --once
-
-# Or continuous publishing:
-ros2 topic pub /target/gps/fix sensor_msgs/msg/NavSatFix \
-  "header: {frame_id: 'gps'}
-   latitude: 37.7749
-   longitude: -122.4194
-   altitude: 10.5
-   position_covariance: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
-   position_covariance_type: 2" -r 1
+python3 scripts/test_serial_usb.py
 ```
 
-**Expected Output on Pico:**
+**Expected Output on Host:**
 ```
-✓ Connected to micro-ROS agent!
+Connected to /dev/ttyACM0 at 115200 baud
 
-Waiting for messages...
+==================================================
+TEST 1: Valid target data
+==================================================
+
+Sending target data:
+  Latitude:  37.774900°
+  Longitude: -122.419400°
+  Altitude:  52.00m
+  Packet: 017f191742bcd6f4c2000050427c
+✓ ACK received - target data accepted!
 ```
+
+**Expected Behavior on Pico:**
+- Blue LED blinks when valid target data is received
+- Green LED blinks if checksum validation fails
+- USB output shows received coordinates
+
+**Protocol Details:**
+
+Target Data Packet (14 bytes):
+```
+Byte 0:    0x01 (TARGET_DATA message type)
+Bytes 1-4: Latitude (float32, little-endian)
+Bytes 5-8: Longitude (float32, little-endian)
+Bytes 9-12: Altitude (float32, little-endian)
+Byte 13:   XOR Checksum (of bytes 0-12)
+```
+
+Response Messages:
+- `0x02` - ACK (success)
+- `0x03 0xXX` - ERROR (error code in second byte)
 
 **Troubleshooting:**
-- Agent connection timeout?
-  - Verify ROS2 is installed: `ros2 --version`
-  - Check agent is running: `ps aux | grep micro_ros_agent`
-  - Verify USB connection: `ls -la /dev/ttyACM*`
-  - Try specifying baud rate: `micro_ros_agent serial --dev /dev/ttyACM0 -b 115200`
-  - Check firewall/network policies on host
-- No messages received?
-  - Verify publisher is running: `ros2 topic list`
-  - Check topic name matches: `/target/gps/fix`
-  - Verify message type: `ros2 topic info /target/gps/fix`
-  - Test with echo: `ros2 topic echo /target/gps/fix`
+- No data received on Pico?
+  - Check USB connection: `ls -la /dev/ttyACM*`
+  - Verify firmware flashed: Pico should print "=== USB Target Data Receiver ===" on startup
+  - Check serial port permissions: `sudo usermod -a -G dialout $USER`
+  - Verify python script can connect: `python3 -c "import serial; print(serial.tools.list_ports.comports())"`
+- Checksum errors?
+  - Verify packet construction in your code
+  - Ensure float32 is little-endian
+  - Check XOR calculation logic
+- Blue LED not blinking?
+  - Test with `scripts/test_serial_usb.py` first
+  - Verify LED wiring (GPIO 20)
 
 ---
 
