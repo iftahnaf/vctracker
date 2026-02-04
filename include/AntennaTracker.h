@@ -3,23 +3,38 @@
 
 #include "../vcgimbal/include/Gimbal.h"
 #include "GPSModule.h"
-#include "ROSParser.h"
+#include "USBTargetParser.h"
 #include "GeoCalculations.h"
 #include "StatusLED.h"
 #include <memory>
 
 /**
+ * @struct NavSatFixMsg
+ * @brief Target position data (compatible with GPS format)
+ */
+struct NavSatFixMsg {
+    double latitude;         // Degrees
+    double longitude;        // Degrees
+    double altitude;         // Meters
+    int8_t status;           // 0=fix, -1=no fix
+    bool valid;              // Whether data is valid
+    
+    NavSatFixMsg() 
+        : latitude(0.0), longitude(0.0), altitude(0.0), status(-1), valid(false) {}
+};
+
+/**
  * @class AntennaTracker
  * @brief Main antenna tracker controller
  * 
- * Integrates GPS module, ROS2 parser, gimbal controller, and status LEDs
+ * Integrates GPS module, USB target parser, gimbal controller, and status LEDs
  * to create a complete antenna tracking system that points toward a moving target.
  * 
  * Features:
  * - Onboard GPS for tracker position
- * - ROS2 NavSatFix message reception for target position
+ * - USB serial protocol for target position reception
  * - Automatic pan/tilt calculation and gimbal control
- * - Visual status indicators (GPS fix, ROS data)
+ * - Visual status indicators (GPS fix, target data)
  */
 class AntennaTracker {
 public:
@@ -27,16 +42,16 @@ public:
      * @brief Constructor
      * @param gimbal Shared pointer to initialized Gimbal controller
      * @param gps Shared pointer to GPS module
-     * @param ros_parser Shared pointer to ROS parser
+     * @param usb_parser Shared pointer to USB target parser
      * @param gps_led Shared pointer to GPS status LED
-     * @param ros_led Shared pointer to ROS status LED
+     * @param target_led Shared pointer to target data status LED
      */
     AntennaTracker(
         std::shared_ptr<Gimbal> gimbal,
         std::shared_ptr<GPSModule> gps,
-        std::shared_ptr<ROSParser> ros_parser,
+        std::shared_ptr<USBTargetParser> usb_parser,
         std::shared_ptr<StatusLED> gps_led,
-        std::shared_ptr<StatusLED> ros_led
+        std::shared_ptr<StatusLED> target_led
     );
     
     /**
@@ -114,9 +129,9 @@ public:
 private:
     std::shared_ptr<Gimbal> gimbal_;
     std::shared_ptr<GPSModule> gps_;
-    std::shared_ptr<ROSParser> ros_parser_;
+    std::shared_ptr<USBTargetParser> usb_parser_;
     std::shared_ptr<StatusLED> gps_led_;
-    std::shared_ptr<StatusLED> ros_led_;
+    std::shared_ptr<StatusLED> target_led_;
     
     bool initialized_;
     bool auto_tracking_;
@@ -131,13 +146,13 @@ private:
     void updateGPSStatus();
     
     /**
-     * @brief Update ROS message status and LED
+     * @brief Update USB target data status and LED
      */
-    void updateROSStatus();
+    void updateTargetStatus();
     
     /**
      * @brief Update gimbal tracking
-     * Calculates and applies new angles if both GPS and ROS data are valid
+     * Calculates and applies new angles if both GPS and USB target data are valid
      */
     void updateTracking();
     

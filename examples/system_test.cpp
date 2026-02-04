@@ -1,5 +1,5 @@
 #include "../include/GPSModule.h"
-#include "../include/ROSParser.h"
+#include "../include/USBTargetParser.h"
 #include "../include/StatusLED.h"
 #include "../vcgimbal/include/Gimbal.h"
 #include "../vcgimbal/include/PWMControllerPico.h"
@@ -18,24 +18,24 @@ int main() {
     
     // Initialize LEDs FIRST - simplest test
     std::cout << "[1/5] Initializing Status LEDs (GPIO 20/21)..." << std::endl;
-    auto status_led = std::make_shared<StatusLED>(20);  // Status indicator
-    auto test_led = std::make_shared<StatusLED>(21);    // Test indicator
-    if (!status_led->init() || !test_led->init()) {
+    auto status_led = std::make_shared<StatusLED>(20);  // GPS status
+    auto target_led = std::make_shared<StatusLED>(21);  // USB target data
+    if (!status_led->init() || !target_led->init()) {
         std::cerr << "Failed to initialize LEDs!" << std::endl;
         return -1;
     }
     status_led->off();
-    test_led->off();
+    target_led->off();
     std::cout << "  ✓ LEDs ready\n" << std::endl;
     
     // Test LEDs immediately
     std::cout << "Testing LEDs..." << std::endl;
     for (int i = 0; i < 10; i++) {
         status_led->on();
-        test_led->on();
+        target_led->on();
         sleep_ms(200);
         status_led->off();
-        test_led->off();
+        target_led->off();
         sleep_ms(200);
     }
     std::cout << "✓ LEDs working\n" << std::endl;
@@ -57,31 +57,27 @@ int main() {
     gps->init();
     std::cout << "  ✓ GPS ready\n" << std::endl;
     
-    std::cout << "[4/5] Initializing micro-ROS..." << std::endl;
-    auto ros_parser = std::make_shared<ROSParser>("antenna_tracker", "/target/gps/fix");
-    if (!ros_parser->init()) {
-        std::cerr << "  ✗ ROS init FAILED!" << std::endl;
+    std::cout << "[4/5] Initializing USB Target Parser..." << std::endl;
+    auto usb_parser = std::make_shared<USBTargetParser>();
+    if (!usb_parser->init()) {
+        std::cerr << "  ✗ USB init FAILED!" << std::endl;
         // Continue anyway to test other components
     } else {
-        std::cout << "  ✓ ROS init OK" << std::endl;
+        std::cout << "  ✓ USB CDC ready" << std::endl;
     }
     
-    // Wait for agent connection
-    std::cout << "  Waiting for agent connection..." << std::endl;
+    // Wait for USB connection
+    std::cout << "  Waiting for USB target data..." << std::endl;
     for (int i = 0; i < 50; i++) {
-        ros_parser->spin();
-        if (ros_parser->isConnected()) {
-            std::cout << "  ✓ Connected to agent!" << std::endl;
+        usb_parser->update();
+        if (usb_parser->isConnected()) {
+            std::cout << "  ✓ USB target data connected!" << std::endl;
             status_led->on();
             sleep_ms(500);
             status_led->off();
             break;
         }
         sleep_ms(100);
-    }
-    
-    if (!ros_parser->isConnected()) {
-        std::cerr << "  ✗ Agent connection timeout!" << std::endl;
     }
     
     // Quick gimbal test
@@ -95,46 +91,47 @@ int main() {
     
     // Main 30-second test loop
     std::cout << "\n========================================" << std::endl;
-    std::cout << "  30-Second ROS Integration Test" << std::endl;
+    std::cout << "  30-Second System Integration Test" << std::endl;
     std::cout << "========================================" << std::endl;
-    std::cout << "Status LED (GPIO 20) = System health" << std::endl;
-    std::cout << "Test LED (GPIO 21)   = Message received\n" << std::endl;
+    std::cout << "Status LED (GPIO 20) = GPS fix" << std::endl;
+    std::cout << "Target LED (GPIO 21) = USB target data\n" << std::endl;
     
     uint32_t start_time = time_us_32();
     uint32_t duration = 30 * 1000 * 1000;
     int loop_count = 0;
-    uint32_t last_ros_msg_time = 0;
-    bool ros_connected = false;
+    uint32_t last_usb_msg_time = 0;
+    bool usb_connected = false;
     
     while (time_us_32() - start_time < duration) {
         loop_count++;
         
-        ros_parser->spin();
+        usb_parser->update();
         gps->update();
         
         // System health LED
         bool gps_ok = gps->getData().fix_quality > 0;
-        bool ros_ok = ros_parser->isConnected();
+        bool usb_ok = usb_parser->isConnected();
         
-        if (gps_ok || ros_ok) {
+        if (gps_ok) {
             status_led->on();
-            ros_connected = true;
         } else {
             status_led->off();
         }
         
-        // Check for ROS messages
-        if (ros_parser->hasMessage()) {
-            auto msg = ros_parser->getMessage();
-            last_ros_msg_time = time_us_32();
-            test_led->on();  // Turn on immediately
-            std::cout << "✓ ROS Msg! Lat:" << msg.latitude << " Lon:" << msg.longitude << std::endl;
+        // Check for USB messages
+        if (usb_parser->isConnected()) {
+            float lat, lon, alt;
+            usb_parser->getTargetPosition(lat, lon, alt);
+            last_usb_msg_time = time_us_32();
+            target_led->on();  // Turn on immediately
+            std::cout << "✓ USB Msg! Lat:" << lat << " Lon:" << lon << " Alt:" << alt << std::endl;
+            usb_connected = true;
         }
         
-        // Keep test LED on for 2 seconds after message (more visible)
-        uint32_t time_since_msg = time_us_32() - last_ros_msg_time;
+        // Keep target LED on for 2 seconds after message (more visible)
+        uint32_t time_since_msg = time_us_32() - last_usb_msg_time;
         if (time_since_msg > 2000000) {  // 2 seconds
-            test_led->off();
+            target_led->off();
         }
         
         // Move gimbal in circle
@@ -148,7 +145,7 @@ int main() {
         if (loop_count % 30 == 0) {
             uint32_t elapsed = (time_us_32() - start_time) / 1000000;
             std::cout << "[" << elapsed << "s] GPS:" << (gps_ok ? "✓" : "✗") 
-                      << " ROS:" << (ros_ok ? "✓" : "✗") << std::endl;
+                      << " USB:" << (usb_ok ? "✓" : "✗") << std::endl;
         }
         
         sleep_ms(100);
@@ -161,10 +158,10 @@ int main() {
     gimbal->setTipAngle(0.0f, 0.0f);
     gimbal->setTipAngle(0.0f, 0.0f);
     status_led->off();
-    test_led->off();
+    target_led->off();
     
-    if (ros_connected) {
-        std::cout << "✓ ROS connected successfully!" << std::endl;
+    if (usb_connected) {
+        std::cout << "✓ USB target data connected successfully!" << std::endl;
     }
     std::cout << "✓ All components operational\n" << std::endl;
     

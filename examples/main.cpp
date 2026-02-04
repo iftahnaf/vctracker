@@ -1,20 +1,21 @@
 #include "../include/AntennaTracker.h"
 #include "../vcgimbal/include/Gimbal.h"
 #include "../vcgimbal/include/PWMControllerPico.h"
+#include "../include/USBProtocol.h"
 #include "pico/stdlib.h"
 #include <iostream>
 #include <memory>
 
 /**
- * @brief Raspberry Pi Pico Antenna Tracker with micro-ROS
+ * @brief Raspberry Pi Pico Antenna Tracker with USB Serial Target Control
  * 
  * Hardware Configuration:
  * - Pan Servo: GPIO 16
  * - Tilt Servo: GPIO 17
  * - GPS Module: UART0 (TX=GPIO 0, RX=GPIO 1)
- * - micro-ROS: USB Serial (automatic)
+ * - USB Serial: USB CDC (automatic)
  * - GPS Status LED: GPIO 20
- * - ROS Status LED: GPIO 21
+ * - Target Data LED: GPIO 21
  */
 
 // Pin definitions
@@ -27,7 +28,7 @@ constexpr uint GPS_RX_PIN = 1;
 constexpr uint32_t GPS_BAUD = 38400;  // M10G default
 
 constexpr uint GPS_LED_PIN = 20;
-constexpr uint ROS_LED_PIN = 21;
+constexpr uint TARGET_LED_PIN = 21;
 
 // Update rate
 constexpr uint32_t UPDATE_INTERVAL_MS = 100; // 10 Hz
@@ -41,7 +42,7 @@ int main() {
     
     std::cout << "\n========================================" << std::endl;
     std::cout << "  Raspberry Pi Pico Antenna Tracker" << std::endl;
-    std::cout << "  with micro-ROS Integration" << std::endl;
+    std::cout << "  with USB Serial Target Control" << std::endl;
     std::cout << "========================================\n" << std::endl;
     
     // Create PWM controller for servos
@@ -53,15 +54,15 @@ int main() {
     // Create GPS module
     auto gps = std::make_shared<GPSModule>(GPS_UART_ID, GPS_TX_PIN, GPS_RX_PIN, GPS_BAUD);
     
-    // Create micro-ROS parser (topic: /target/gps/fix)
-    auto ros_parser = std::make_shared<ROSParser>("antenna_tracker", "/target/gps/fix");
+    // Create USB target parser (receives target lat/lon/alt over USB serial)
+    auto usb_parser = std::make_shared<USBTargetParser>();
     
     // Create status LEDs
     auto gps_led = std::make_shared<StatusLED>(GPS_LED_PIN);
-    auto ros_led = std::make_shared<StatusLED>(ROS_LED_PIN);
+    auto target_led = std::make_shared<StatusLED>(TARGET_LED_PIN);
     
     // Create antenna tracker
-    AntennaTracker tracker(gimbal, gps, ros_parser, gps_led, ros_led);
+    AntennaTracker tracker(gimbal, gps, usb_parser, gps_led, target_led);
     
     // Initialize tracker
     if (!tracker.init()) {
@@ -81,17 +82,18 @@ int main() {
     std::cout << "  Tilt Servo:   GPIO " << TILT_SERVO_PIN << std::endl;
     std::cout << "  GPS UART:     UART" << GPS_UART_ID << " (TX=" << GPS_TX_PIN 
               << ", RX=" << GPS_RX_PIN << ", " << GPS_BAUD << " baud)" << std::endl;
-    std::cout << "  micro-ROS:    USB Serial (automatic)" << std::endl;
+    std::cout << "  USB Serial:   USB CDC (115200 baud)" << std::endl;
     std::cout << "  GPS LED:      GPIO " << GPS_LED_PIN << std::endl;
-    std::cout << "  ROS LED:      GPIO " << ROS_LED_PIN << std::endl;
+    std::cout << "  Target LED:   GPIO " << TARGET_LED_PIN << std::endl;
     
-    std::cout << "\nMake sure to start micro-ROS agent on host:" << std::endl;
-    std::cout << "  ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyACM0" << std::endl;
-    
-    std::cout << "\nThen publish target GPS to /target/gps/fix:" << std::endl;
-    std::cout << "  ros2 topic pub /target/gps/fix sensor_msgs/msg/NavSatFix ..." << std::endl;
-    
-    std::cout << "\nWaiting for GPS fix and ROS messages..." << std::endl;
+    std::cout << "\nTarget Position Protocol:" << std::endl;
+    std::cout << "  Send 14-byte packets over USB (/dev/ttyACM0, 115200 baud):" << std::endl;
+    std::cout << "  Byte 0:    0x01 (TARGET_DATA)" << std::endl;
+    std::cout << "  Bytes 1-4: Latitude (float32, little-endian)" << std::endl;
+    std::cout << "  Bytes 5-8: Longitude (float32, little-endian)" << std::endl;
+    std::cout << "  Bytes 9-12: Altitude (float32, little-endian)" << std::endl;
+    std::cout << "  Byte 13:   XOR Checksum (of bytes 0-12)" << std::endl;
+    std::cout << "\nExample Python: python3 scripts/test_serial_usb.py" << std::endl;
     std::cout << "========================================\n" << std::endl;
     
     // Set tracking parameters
@@ -125,17 +127,17 @@ int main() {
                 std::cout << "No fix" << std::endl;
             }
             
-            std::cout << "Target (ROS): ";
-            if (target_pos.valid) {
-                std::cout << "Lat=" << target_pos.latitude 
-                          << ", Lon=" << target_pos.longitude
-                          << ", Alt=" << target_pos.altitude << "m"
-                          << ", Status=" << (int)target_pos.status << std::endl;
+            std::cout << "Target (USB): ";
+            float target_lat, target_lon, target_alt;
+            if (usb_parser->getTargetPosition(target_lat, target_lon, target_alt)) {
+                std::cout << "Lat=" << target_lat 
+                          << ", Lon=" << target_lon
+                          << ", Alt=" << target_alt << "m" << std::endl;
             } else {
                 std::cout << "No data" << std::endl;
             }
             
-            std::cout << "micro-ROS: " << (ros_parser->isConnected() ? "Connected" : "Disconnected") << std::endl;
+            std::cout << "USB Target: " << (usb_parser->isConnected() ? "Connected" : "Disconnected") << std::endl;
             std::cout << "Gimbal: Pan=" << angles.pan << "°, Tilt=" << angles.tilt << "°" << std::endl;
             std::cout << "--------------------\n" << std::endl;
             

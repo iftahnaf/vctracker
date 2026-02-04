@@ -9,10 +9,6 @@ set(PICO_SDK_PATH "${CMAKE_SOURCE_DIR}/vcgimbal/lib/pico-sdk" CACHE PATH "Path t
 # Include pico SDK
 include(${PICO_SDK_PATH}/external/pico_sdk_import.cmake)
 
-# Set micro-ROS SDK path as environment variable for its CMakeLists
-set(ENV{PICO_SDK_PATH} "${PICO_SDK_PATH}")
-set(MICROROS_SDK_PATH "${CMAKE_SOURCE_DIR}/lib/micro_ros_raspberrypi_pico_sdk" CACHE PATH "Path to micro-ROS SDK")
-
 project(vctracker VERSION 1.0.0 LANGUAGES CXX C)
 
 # Initialize pico SDK
@@ -24,7 +20,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_STANDARD 11)
 
 # Build target selection
-set(BUILD_TARGET "main" CACHE STRING "Build target: main|test_gps|test_leds|test_gimbal|test_ros|system_test|all")
+set(BUILD_TARGET "main" CACHE STRING "Build target: main|test_gps|test_leds|test_gimbal|test_serial|system_test|all")
 
 # Compiler flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic -fexceptions")
@@ -37,29 +33,24 @@ endif()
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "Build target: ${BUILD_TARGET}")
-message(STATUS "Building Antenna Tracker for Raspberry Pi Pico with micro-ROS")
+message(STATUS "Building Antenna Tracker for Raspberry Pi Pico")
 
 # Include directories
 include_directories(
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/vcgimbal/include
-    ${MICROROS_SDK_PATH}/libmicroros/include
 )
-
-# Link directories for prebuilt micro-ROS library
-link_directories(${MICROROS_SDK_PATH}/libmicroros)
 
 # Build vcgimbal library first
 add_subdirectory(vcgimbal)
 
-# Antenna tracker source files
+# Antenna tracker source files (USB-based, no ROS)
 set(TRACKER_SOURCES
     src/AntennaTracker.cpp
     src/GPSModule.cpp
     src/GeoCalculations.cpp
     src/StatusLED.cpp
-    src/ROSParser.cpp
-    src/pico_uart_transport.c
+    src/USBTargetParser.cpp
 )
 
 # Create antenna tracker library
@@ -71,7 +62,6 @@ target_link_libraries(antenna_tracker_lib
     hardware_uart
     hardware_pwm
     hardware_clocks
-    microros
 )
 
 target_compile_options(antenna_tracker_lib PRIVATE -fexceptions)
@@ -95,7 +85,6 @@ macro(create_executable TARGET_NAME SOURCE_FILE)
         hardware_uart
         hardware_pwm
         hardware_clocks
-        microros
     )
     
     pico_enable_stdio_usb(${TARGET_NAME} 1)
@@ -164,9 +153,7 @@ endif()
 
 message(STATUS "=== Antenna Tracker Build Configuration ===")
 message(STATUS "  Output: ${CMAKE_BINARY_DIR}/bin/")
-message(STATUS "  USB Serial: Enabled")
-message(STATUS "  micro-ROS: Enabled")
-
-message(STATUS "  UART Serial: Disabled")
-message(STATUS "  micro-ROS: Enabled")
+message(STATUS "  USB Serial: Enabled (USB CDC)")
+message(STATUS "  Target Protocol: Simple binary struct (no ROS)")
+message(STATUS "  GPS Module: UBX binary protocol")
 message(STATUS "==========================================")

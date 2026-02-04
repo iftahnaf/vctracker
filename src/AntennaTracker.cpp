@@ -5,14 +5,14 @@
 AntennaTracker::AntennaTracker(
     std::shared_ptr<Gimbal> gimbal,
     std::shared_ptr<GPSModule> gps,
-    std::shared_ptr<ROSParser> ros_parser,
+    std::shared_ptr<USBTargetParser> usb_parser,
     std::shared_ptr<StatusLED> gps_led,
-    std::shared_ptr<StatusLED> ros_led)
+    std::shared_ptr<StatusLED> target_led)
     : gimbal_(gimbal),
       gps_(gps),
-      ros_parser_(ros_parser),
+      usb_parser_(usb_parser),
       gps_led_(gps_led),
-      ros_led_(ros_led),
+      target_led_(target_led),
       initialized_(false),
       auto_tracking_(true),
       min_elevation_(-10.0f),
@@ -40,12 +40,12 @@ bool AntennaTracker::init() {
     }
     std::cout << "GPS module initialized" << std::endl;
     
-    // Initialize ROS parser
-    if (!ros_parser_->init()) {
-        std::cerr << "Failed to initialize ROS parser" << std::endl;
+    // Initialize USB target parser
+    if (!usb_parser_->init()) {
+        std::cerr << "Failed to initialize USB target parser" << std::endl;
         return false;
     }
-    std::cout << "ROS parser initialized" << std::endl;
+    std::cout << "USB target parser initialized" << std::endl;
     
     // Initialize gimbal
     if (!gimbal_->init()) {
@@ -60,15 +60,15 @@ bool AntennaTracker::init() {
         return false;
     }
     
-    if (!ros_led_->init()) {
-        std::cerr << "Failed to initialize ROS LED" << std::endl;
+    if (!target_led_->init()) {
+        std::cerr << "Failed to initialize Target LED" << std::endl;
         return false;
     }
     std::cout << "Status LEDs initialized" << std::endl;
     
     // Set initial LED states
     gps_led_->setState(LEDState::FAST); // Blinking fast = no fix yet
-    ros_led_->setState(LEDState::FAST); // Blinking fast = no data yet
+    target_led_->setState(LEDState::FAST); // Blinking fast = no data yet
     
     initialized_ = true;
     std::cout << "Antenna Tracker initialized successfully" << std::endl;
@@ -84,12 +84,12 @@ void AntennaTracker::update() {
     // Update GPS data
     gps_->update();
     
-    // Spin micro-ROS executor to process callbacks
-    ros_parser_->spin();
+    // Update USB target parser to receive new data
+    usb_parser_->update();
     
     // Update status indicators
     updateGPSStatus();
-    updateROSStatus();
+    updateTargetStatus();
     
     // Update tracking if enabled
     if (auto_tracking_) {
@@ -98,7 +98,7 @@ void AntennaTracker::update() {
     
     // Update LED animations
     gps_led_->update();
-    ros_led_->update();
+    target_led_->update();
 }
 
 void AntennaTracker::shutdown() {
@@ -110,7 +110,7 @@ void AntennaTracker::shutdown() {
     
     // Turn off LEDs
     gps_led_->setState(LEDState::OFF);
-    ros_led_->setState(LEDState::OFF);
+    target_led_->setState(LEDState::OFF);
     
     // Shutdown gimbal (centers servos)
     gimbal_->shutdown();
@@ -128,7 +128,20 @@ GPSData AntennaTracker::getTrackerPosition() const {
 }
 
 NavSatFixMsg AntennaTracker::getTargetPosition() const {
-    return ros_parser_->getMessage();
+    float lat, lon, alt;
+    NavSatFixMsg msg;
+    
+    if (usb_parser_->getTargetPosition(lat, lon, alt)) {
+        msg.latitude = lat;
+        msg.longitude = lon;
+        msg.altitude = alt;
+        msg.status = 0;  // GPS fix
+        msg.valid = true;
+    } else {
+        msg.valid = false;
+    }
+    
+    return msg;
 }
 
 PanTiltAngles AntennaTracker::getCurrentAngles() const {
@@ -180,43 +193,43 @@ void AntennaTracker::updateGPSStatus() {
     }
 }
 
-void AntennaTracker::updateROSStatus() {
-    if (ros_parser_->hasMessage()) {
-        uint64_t time_since = ros_parser_->timeSinceLastMessage();
+void AntennaTracker::updateTargetStatus() {
+    if (usb_parser_->isConnected()) {
+        uint32_t time_since = usb_parser_->getTimeSinceLastUpdate();
         
         if (time_since < 1000) {
-            // Recent message (< 1 second) - solid on
-            ros_led_->setState(LEDState::ON);
+            // Recent data (< 1 second) - solid on
+            target_led_->setState(LEDState::ON);
         } else if (time_since < 3000) {
             // Somewhat recent (1-3 seconds) - slow blink
-            ros_led_->setState(LEDState::SLOW);
+            target_led_->setState(LEDState::SLOW);
         } else {
-            // Old message - fast blink
-            ros_led_->setState(LEDState::FAST);
+            // Old data - fast blink
+            target_led_->setState(LEDState::FAST);
         }
     } else {
-        // No message - fast blink
-        ros_led_->setState(LEDState::FAST);
+        // No target data - fast blink
+        target_led_->setState(LEDState::FAST);
     }
 }
 
 void AntennaTracker::updateTracking() {
-    // Check if we have valid data from both GPS and ROS
+    // Check if we have valid data from both GPS and USB target
     GPSData tracker_pos = gps_->getData();
-    NavSatFixMsg target_pos = ros_parser_->getMessage();
+    float target_lat, target_lon, target_alt;
     
-    if (!tracker_pos.valid || !target_pos.valid) {
-        return; // Don't update tracking without valid data
+    if (!tracker_pos.valid) {
+        return; // Don't update tracking without valid tracker GPS
     }
     
-    if (!ros_parser_->hasMessage()) {
-        return; // ROS data is too old
+    if (!usb_parser_->getTargetPosition(target_lat, target_lon, target_alt)) {
+        return; // No valid target data available
     }
     
     // Calculate required angles
     PanTiltAngles angles = GeoCalculations::calculateTrackerAngles(
         tracker_pos.latitude, tracker_pos.longitude, tracker_pos.altitude,
-        target_pos.latitude, target_pos.longitude, target_pos.altitude
+        target_lat, target_lon, target_alt
     );
     
     // Apply safety limits
